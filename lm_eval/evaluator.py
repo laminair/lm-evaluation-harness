@@ -648,6 +648,11 @@ def evaluate(
                             _higher_is_better[m] = None
                 higher_is_better[group] = _higher_is_better
 
+        # TODO: @Ryan this is where we need to capture the model outputs
+        # TODO: Can you find out where we can capture the input text, the expected response and the model response?
+        # TODO: We need a csv file with input, expected response, and output pairs. The rest can be done outside of LM
+        #  eval
+        # TODO: As a model to test, you could use Llama 3.2 1B/3B, it should be small enough to get a speedy output.
         results_dict = {
             "results": dict(results_agg.items()),
             **(

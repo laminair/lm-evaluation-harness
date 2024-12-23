@@ -1,5 +1,6 @@
 import itertools
 import json
+import csv
 import logging
 import random
 import time
@@ -653,6 +654,31 @@ def evaluate(
         # TODO: We need a csv file with input, expected response, and output pairs. The rest can be done outside of LM
         #  eval
         # TODO: As a model to test, you could use Llama 3.2 1B/3B, it should be small enough to get a speedy output.
+        output_csv = "model_outputs.csv"
+        with open(output_csv, "w", encoding="utf-8", newline="") as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerow(["task_name", "doc_id", "prompt", "expected_response", "model_output"])
+
+            for task_output in eval_tasks:
+                task_name = task_output.task_name
+                for example in task_output.logged_samples:
+                    doc_id = example["doc_id"]
+
+                    if example["arguments"]:
+                        prompt = example["arguments"][0][0]
+                    else:
+                        prompt = ""
+
+                    expected_response = example["target"]
+                    if example["resps"]:
+                        model_output = example["resps"][0][0]
+                    else:
+                        model_output = ""
+
+                    writer.writerow([task_name, doc_id, prompt, expected_response, model_output])
+
+        eval_logger.info(f"CSV file with model outputs has been saved to '{output_csv}'.")
+
         results_dict = {
             "results": dict(results_agg.items()),
             **(

@@ -676,10 +676,9 @@ def evaluate(
             writer = csv.writer(csvfile)
             writer.writerow(["task_name", "doc_id", "prompt", "expected_response", "model_output"])
             for task_output in eval_tasks:
-                eval_logger.info(f"Task: {task_output.task_name}, Logged Samples: {len(task_output.logged_samples)}")
                 task_name = task_output.task_name
+                eval_logger.info(f"Task: {task_name}, Logged Samples: {len(task_output.logged_samples)}")
                 for example in task_output.logged_samples:
-                    # eval_logger.info(example)
                     doc_id = example["doc_id"]
                     if example["arguments"]:
                         prompt = example["arguments"][0][0]
@@ -687,11 +686,18 @@ def evaluate(
                         prompt = ""
                     expected_response = example["target"]
                     if example["resps"]:
-                        model_output = example["resps"][0][0]
+                        # Convert the raw (loglikelihood, bool) tuples into a final choice
+                        resps = example["resps"]
+                        scores = [resps[i][0][0] for i in range(len(resps))]
+                        pred_idx = max(range(len(scores)), key=lambda i: scores[i])
+                        model_output = pred_idx
                     else:
                         model_output = ""
                     writer.writerow([task_name, doc_id, prompt, expected_response, model_output])
+        
         eval_logger.info(f"CSV file with model outputs has been saved to '{output_csv}'.")
+
+
         
         results_dict = {
             "results": dict(results_agg.items()),

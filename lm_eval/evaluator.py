@@ -5,6 +5,7 @@ import random
 import time
 from collections import defaultdict
 from typing import TYPE_CHECKING, List, Optional, Union
+import csv
 
 import numpy as np
 import torch
@@ -415,6 +416,7 @@ def evaluate(
 
     # get lists of group hierarchy and each type of request
     eval_tasks = get_task_list(task_dict)
+    eval_logger.info(eval_tasks)
     if not log_samples:
         if not all(
             "bypass" not in getattr(task_output.task, "_metric_fn_list", {}).keys()
@@ -464,6 +466,8 @@ def evaluate(
             if apply_chat_template
             else "",
         )
+        eval_logger.info(f"{task_output.task_name} has {len(task.instances)} instances on rank {lm.rank}.")
+
         eval_logger.debug(
             f"Task: {task_output.task_name}; number of requests on this rank: {len(task.instances)}"
         )
@@ -514,6 +518,8 @@ def evaluate(
             lm.accelerator.wait_for_everyone()
 
     RANK = lm.rank
+    # eval_logger.info(f"[DEBUG] We are on rank {lm.rank}")
+
     WORLD_SIZE = lm.world_size
     ### Postprocess outputs ###
     # TODO: del model here, maybe (idea: allow user to specify device of e.g. reward model separately)
@@ -527,6 +533,7 @@ def evaluate(
         # Pre-process task.instances to group by doc_id
         instances_by_doc_id = defaultdict(list)
         for instance in task.instances:
+            # eval_logger.info(f"Instance idx: {instance.idx}, args: {instance.arguments}, resps: {instance.resps}")
             instances_by_doc_id[instance.doc_id].append(instance)
         # Sort instances within each group
         for instances in instances_by_doc_id.values():
@@ -541,7 +548,12 @@ def evaluate(
                 metrics = task.process_results(
                     doc, [req.filtered_resps[filter_key] for req in requests]
                 )
+                # eval_logger.info(f"filter_key={filter_key}, doc_id={doc_id}, {len(requests)} requests found")
+
                 if log_samples:
+                    # eval_logger.info(f"[DEBUG] # of task.instances = {len(task.instances)}")
+                    # if task.instances:
+                    #     eval_logger.info(f"[DEBUG] filtered_resps keys = {task.instances[0].filtered_resps.keys()}")
                     target = task.doc_to_target(doc)
                     example = {
                         "doc_id": doc_id,
@@ -566,7 +578,13 @@ def evaluate(
                         "target_hash": hash_string(str(target)),
                     }
                     example.update(metrics)
+                    # eval_logger.info(f"[DEBUG] arguments={[req.args for req in requests]}")
+                    # eval_logger.info(f"[DEBUG] resps={[req.resps for req in requests]}")
+                    # eval_logger.info(f"[DEBUG] doc_id={doc_id}, doc={doc}")
+                    # eval_logger.info(f"[DEBUG] example={example}")
+
                     task_output.logged_samples.append(example)
+                
                 for metric, value in metrics.items():
                     task_output.sample_metrics[(metric, filter_key)].append(value)
 
@@ -653,6 +671,34 @@ def evaluate(
         # TODO: We need a csv file with input, expected response, and output pairs. The rest can be done outside of LM
         #  eval
         # TODO: As a model to test, you could use Llama 3.2 1B/3B, it should be small enough to get a speedy output.
+        output_csv = "model_outputs.csv"
+        with open(output_csv, "w", encoding="utf-8", newline="") as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerow(["task_name", "doc_id", "prompt", "expected_response", "model_output"])
+            for task_output in eval_tasks:
+                task_name = task_output.task_name
+                eval_logger.info(f"Task: {task_name}, Logged Samples: {len(task_output.logged_samples)}")
+                for example in task_output.logged_samples:
+                    doc_id = example["doc_id"]
+                    if example["arguments"]:
+                        prompt = example["arguments"][0][0]
+                    else:
+                        prompt = ""
+                    expected_response = example["target"]
+                    if example["resps"]:
+                        # Convert the raw (loglikelihood, bool) tuples into a final choice
+                        resps = example["resps"]
+                        scores = [resps[i][0][0] for i in range(len(resps))]
+                        pred_idx = max(range(len(scores)), key=lambda i: scores[i])
+                        model_output = pred_idx
+                    else:
+                        model_output = ""
+                    writer.writerow([task_name, doc_id, prompt, expected_response, model_output])
+        
+        eval_logger.info(f"CSV file with model outputs has been saved to '{output_csv}'.")
+
+
+        
         results_dict = {
             "results": dict(results_agg.items()),
             **(

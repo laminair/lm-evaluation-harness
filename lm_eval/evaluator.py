@@ -697,8 +697,6 @@ def evaluate(
         
         eval_logger.info(f"CSV file with model outputs has been saved to '{output_csv}'.")
 
-
-        
         results_dict = {
             "results": dict(results_agg.items()),
             **(

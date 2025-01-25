@@ -10,7 +10,7 @@ import csv
 import numpy as np
 import torch
 
-import lm_eval.api.metrics
+# import lm_eval.api.metrics
 import lm_eval.api.registry
 import lm_eval.api.task
 import lm_eval.models
@@ -545,9 +545,10 @@ def evaluate(
             )
             for doc_id, doc in doc_iterator:
                 requests = instances_by_doc_id[doc_id]
-                metrics = task.process_results(
-                    doc, [req.filtered_resps[filter_key] for req in requests]
-                )
+                # NO NEED FOR RUNNING METRICS
+                # metrics = task.process_results(
+                #     doc, [req.filtered_resps[filter_key] for req in requests]
+                # )
                 # eval_logger.info(f"filter_key={filter_key}, doc_id={doc_id}, {len(requests)} requests found")
 
                 if log_samples:
@@ -565,7 +566,7 @@ def evaluate(
                             req.filtered_resps[filter_key] for req in requests
                         ],
                         "filter": filter_key,
-                        "metrics": list(metrics.keys()),
+                        # "metrics": list(metrics.keys()),
                         "doc_hash": hash_string(
                             json.dumps(
                                 requests[0].doc,
@@ -577,7 +578,7 @@ def evaluate(
                         "prompt_hash": hash_string(requests[0].arguments[0]),
                         "target_hash": hash_string(str(target)),
                     }
-                    example.update(metrics)
+                    # example.update(metrics)
                     # eval_logger.info(f"[DEBUG] arguments={[req.args for req in requests]}")
                     # eval_logger.info(f"[DEBUG] resps={[req.resps for req in requests]}")
                     # eval_logger.info(f"[DEBUG] doc_id={doc_id}, doc={doc}")
@@ -585,8 +586,8 @@ def evaluate(
 
                     task_output.logged_samples.append(example)
                 
-                for metric, value in metrics.items():
-                    task_output.sample_metrics[(metric, filter_key)].append(value)
+                # for metric, value in metrics.items():
+                #     task_output.sample_metrics[(metric, filter_key)].append(value)
 
     if WORLD_SIZE > 1:
         # if multigpu, then gather data across all ranks to rank 0
@@ -606,18 +607,18 @@ def evaluate(
                         itertools.chain.from_iterable(full_samples)
                     )
 
-            # then collect metrics across all ranks
-            for metrics in task_output.sample_metrics:
-                metric_list = [None] * WORLD_SIZE if RANK == 0 else None
-                torch.distributed.gather_object(
-                    obj=task_output.sample_metrics[metrics],
-                    object_gather_list=metric_list,
-                    dst=0,
-                )
-                if RANK == 0:
-                    task_output.sample_metrics[metrics] = list(
-                        itertools.chain.from_iterable(metric_list)
-                    )
+            # # then collect metrics across all ranks
+            # for metrics in task_output.sample_metrics:
+            #     metric_list = [None] * WORLD_SIZE if RANK == 0 else None
+            #     torch.distributed.gather_object(
+            #         obj=task_output.sample_metrics[metrics],
+            #         object_gather_list=metric_list,
+            #         dst=0,
+            #     )
+            #     if RANK == 0:
+            #         task_output.sample_metrics[metrics] = list(
+            #             itertools.chain.from_iterable(metric_list)
+            #         )
 
     if RANK == 0:
         ### Aggregate results over all datapoints ###
@@ -672,6 +673,8 @@ def evaluate(
         #  eval
         # TODO: As a model to test, you could use Llama 3.2 1B/3B, it should be small enough to get a speedy output.
         output_csv = "model_outputs.csv"
+        collected_responses = []  # Initialize a list to collect all responses
+
         with open(output_csv, "w", encoding="utf-8", newline="") as csvfile:
             writer = csv.writer(csvfile)
             writer.writerow(["task_name", "doc_id", "prompt", "expected_response", "model_output"])
@@ -686,16 +689,27 @@ def evaluate(
                         prompt = ""
                     expected_response = example["target"]
                     if example["resps"]:
+                        print("Raw responses:", example["resps"])
                         # Convert the raw (loglikelihood, bool) tuples into a final choice
                         resps = example["resps"]
                         scores = [resps[i][0][0] for i in range(len(resps))]
                         pred_idx = max(range(len(scores)), key=lambda i: scores[i])
-                        model_output = pred_idx
+                        model_output = resps[pred_idx][0][1]  # Use the highest-scoring text
                     else:
                         model_output = ""
                     writer.writerow([task_name, doc_id, prompt, expected_response, model_output])
         
+                    # Add to collected responses
+                    collected_responses.append({
+                        "task_name": task_name,
+                        "doc_id": doc_id,
+                        "prompt": prompt,
+                        "expected_response": expected_response,
+                        "model_output": model_output,
+                    })
+        
         eval_logger.info(f"CSV file with model outputs has been saved to '{output_csv}'.")
+
 
         results_dict = {
             "results": dict(results_agg.items()),
@@ -719,6 +733,7 @@ def evaluate(
                 }
                 for task_output, limit in zip(eval_tasks, limits)
             },
+            "responses": collected_responses,
         }
         if log_samples:
             results_dict["samples"] = dict(samples)

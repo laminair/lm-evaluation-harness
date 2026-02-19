@@ -1,0 +1,33 @@
+# Weighted Random Router Configuration
+# Demonstrates a stateful router with online learning
+#
+# Usage:
+#   lm-eval run --router_config examples/router_config_weighted.yaml --tasks hellaswag
+
+models:
+  small_model:
+    type: hf
+    pretrained: gpt2
+    dtype: float32
+
+  large_model:
+    type: hf
+    pretrained: gpt2-medium
+    dtype: float32
+
+routing:
+  primary_model: small_model
+
+  shadow_mode: all
+
+  adaptive: true
+
+  routing_callback: examples.weighted_random_router:route
+  outcome_callback: examples.weighted_random_router:update
+
+  initial_state:
+    weights:
+      small_model: 0.3
+      large_model: 0.7
+    learning_rate: 0.1
+    shadow_mode: all

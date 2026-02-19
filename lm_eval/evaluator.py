@@ -36,6 +36,8 @@ from lm_eval.utils import (
     wrap_text,
 )
 
+from lm_eval.api.router import OutcomeEvent
+
 
 if TYPE_CHECKING:
     from lm_eval.api.group import Group
@@ -83,6 +85,7 @@ def simple_evaluate(
     fewshot_random_seed: int = DEFAULT_OTHER_SEED,
     confirm_run_unsafe_code: bool = False,
     metadata: dict[str, Any] | None = None,
+    router_config: str | None = None,
 ) -> EvalResults | None:
     """Instantiate and evaluate a model on a list of tasks.
 
@@ -153,6 +156,8 @@ def simple_evaluate(
             as unsafe (e.g. code execution tasks).
         metadata (dict | None): Additional metadata to be added to the task
             manager. Will get passed to the download function of the task.
+        router_config (str | None): Path to router config YAML file. If provided,
+            creates a RouterLM that routes between multiple models.
 
     Returns:
         dict | None: Dictionary of results, or None if not on rank 0.
@@ -229,7 +234,17 @@ def simple_evaluate(
         if not gen_kwargs:
             gen_kwargs = None
 
-    if isinstance(model, str):
+    if router_config is not None:
+        from lm_eval.models.router import RouterLM
+
+        eval_logger.info(f"Initializing RouterLM with config: {router_config}")
+        lm = RouterLM(
+            config_path=router_config,
+            batch_size=batch_size,
+            max_batch_size=max_batch_size,
+            device=device,
+        )
+    elif isinstance(model, str):
         if model_args is None:
             eval_logger.warning("model_args not specified. Using defaults.")
             model_args = ""
@@ -408,6 +423,176 @@ def simple_evaluate(
         return results
     else:
         return None
+
+
+def _evaluate_adaptive(
+    lm,
+    eval_tasks: dict,
+    eval_results_acc: dict,
+    limits: list,
+    samples: dict[str, list[int]] | None,
+    log_samples: bool,
+) -> None:
+    """
+    Adaptive evaluation mode for RouterLM with shadow routing.
+
+    Processes documents one at a time, computes metrics for all models,
+    and provides feedback to the router for online learning.
+    """
+    from lm_eval.models.router import RouterLM
+    from tqdm import tqdm
+
+    router_lm = lm
+    RANK = lm.rank
+    WORLD_SIZE = lm.world_size
+
+    for (task_name, acc), limit in zip(eval_results_acc.items(), limits, strict=True):
+        task = acc["task"]
+        task.apply_filters()
+
+        instances_by_doc_id = defaultdict(list)
+        for instance in task.instances:
+            instances_by_doc_id[instance.doc_id].append(instance)
+        for instances in instances_by_doc_id.values():
+            instances.sort(key=lambda x: x.idx)
+
+        if not task.instances:
+            continue
+
+        filter_key = list(task.instances[0].filtered_resps.keys())[0]
+        indices = samples.get(task_name, None) if samples is not None else None
+        doc_iterator = task.doc_iterator(
+            rank=RANK,
+            limit=limit,
+            world_size=WORLD_SIZE,
+            samples=indices,
+        )
+
+        doc_list = list(doc_iterator)
+        for doc_id, doc in tqdm(doc_list, desc=f"Adaptive eval for {task_name}"):
+            doc_id_true = indices[doc_id] if indices else doc_id
+            requests = instances_by_doc_id[doc_id]
+
+            for req in requests:
+                decision = router_lm.get_pending_decision(task_name, doc_id, req.idx)
+                if decision is None:
+                    continue
+
+                if not decision.shadow_models:
+                    metrics = task.process_results(
+                        doc, [req.filtered_resps[filter_key] for req in requests]
+                    )
+                    primary_metric_name = list(metrics.keys())[0] if metrics else None
+                    primary_correct = (
+                        metrics.get(primary_metric_name, 0) >= 0.5
+                        if primary_metric_name
+                        else False
+                    )
+
+                    event = OutcomeEvent(
+                        request=req,
+                        task_name=task_name,
+                        doc_id=doc_id_true,
+                        doc=doc,
+                        primary_model=decision.primary_model,
+                        shadow_models=[],
+                        all_responses=decision.all_responses,
+                        primary_metrics=metrics,
+                        primary_correct=primary_correct,
+                        all_metrics={decision.primary_model: metrics},
+                        all_correct={decision.primary_model: primary_correct},
+                        routing_metadata=decision.metadata,
+                    )
+                    router_lm.on_outcome(event)
+                    continue
+
+                all_metrics = {}
+                all_correct = {}
+
+                for model_id, response in decision.all_responses.items():
+                    temp_req = type(req)(
+                        request_type=req.request_type,
+                        doc=req.doc,
+                        arguments=req.arguments,
+                        idx=req.idx,
+                        metadata=req.metadata,
+                    )
+                    temp_req.resps = (
+                        [[response]] if not isinstance(response, list) else [response]
+                    )
+                    temp_req.filtered_resps = req.filtered_resps.copy()
+
+                    temp_req.filtered_resps[filter_key] = temp_req.resps[0]
+
+                    model_metrics = task.process_results(
+                        doc, [temp_req.filtered_resps[filter_key]]
+                    )
+                    all_metrics[model_id] = model_metrics
+
+                    metric_name = (
+                        list(model_metrics.keys())[0] if model_metrics else None
+                    )
+                    all_correct[model_id] = (
+                        model_metrics.get(metric_name, 0) >= 0.5
+                        if metric_name
+                        else False
+                    )
+
+                primary_metrics = all_metrics.get(decision.primary_model, {})
+                primary_metric_name = (
+                    list(primary_metrics.keys())[0] if primary_metrics else None
+                )
+                primary_correct = all_correct.get(decision.primary_model, False)
+
+                event = OutcomeEvent(
+                    request=req,
+                    task_name=task_name,
+                    doc_id=doc_id_true,
+                    doc=doc,
+                    primary_model=decision.primary_model,
+                    shadow_models=decision.shadow_models,
+                    all_responses=decision.all_responses,
+                    primary_metrics=primary_metrics,
+                    primary_correct=primary_correct,
+                    all_metrics=all_metrics,
+                    all_correct=all_correct,
+                    routing_metadata=decision.metadata,
+                )
+                router_lm.on_outcome(event)
+
+            primary_metrics = task.process_results(
+                doc, [req.filtered_resps[filter_key] for req in requests]
+            )
+
+            if log_samples:
+                target = task.doc_to_target(doc)
+                example = {
+                    "doc_id": doc_id_true,
+                    "doc": doc,
+                    "target": target,
+                    "arguments": [req.args for req in requests],
+                    "resps": [req.resps for req in requests],
+                    "filtered_resps": [
+                        req.filtered_resps[filter_key] for req in requests
+                    ],
+                    "filter": filter_key,
+                    "metrics": list(primary_metrics.keys()),
+                    "doc_hash": hash_string(
+                        json.dumps(
+                            requests[0].doc,
+                            indent=2,
+                            default=handle_non_serializable,
+                            ensure_ascii=False,
+                        )
+                    ),
+                    "prompt_hash": hash_string(requests[0].arguments[0]),
+                    "target_hash": hash_string(str(target)),
+                }
+                example.update(primary_metrics)
+                acc["logged_samples"].append(example)
+
+            for metric, value in primary_metrics.items():
+                acc["raw_metrics"][(metric, filter_key)].append(value)
 
 
 @positional_deprecated
@@ -594,65 +779,82 @@ def evaluate(
 
     RANK = lm.rank
     WORLD_SIZE = lm.world_size
-    ### Postprocess outputs ###
-    # TODO: del model here, maybe (idea: allow user to specify device of e.g. reward model separately)
-    for (task_name, acc), limit in zip(eval_results_acc.items(), limits, strict=True):
-        task = acc["task"]
-        task.apply_filters()
 
-        ### Collect values of metrics on all datapoints ###
-        # # unpack results and sort back in order and return control to Task
-        # TODO: make it possible to use a different metric per filter
-        # Pre-process task.instances to group by doc_id
-        instances_by_doc_id = defaultdict(list)
-        for instance in task.instances:
-            instances_by_doc_id[instance.doc_id].append(instance)
-        # Sort instances within each group
-        for instances in instances_by_doc_id.values():
-            instances.sort(key=lambda x: x.idx)
-        # iterate over different filters used
-        for filter_key in task.instances[0].filtered_resps:
-            indices = samples.get(task_name, None) if samples is not None else None
-            doc_iterator = task.doc_iterator(
-                rank=RANK,
-                limit=limit,
-                world_size=WORLD_SIZE,
-                samples=indices,
-            )
-            for doc_id, doc in doc_iterator:
-                doc_id_true = indices[doc_id] if indices else doc_id
-                requests = instances_by_doc_id[doc_id]
-                metrics = task.process_results(
-                    doc, [req.filtered_resps[filter_key] for req in requests]
+    from lm_eval.models.router import RouterLM
+
+    is_router_adaptive = isinstance(lm, RouterLM) and lm.adaptive
+
+    ### Postprocess outputs ###
+    if is_router_adaptive:
+        eval_logger.info("Using adaptive evaluation mode for RouterLM")
+        _evaluate_adaptive(
+            lm=lm,
+            eval_tasks=eval_tasks,
+            eval_results_acc=eval_results_acc,
+            limits=limits,
+            samples=samples,
+            log_samples=log_samples,
+        )
+    else:
+        for (task_name, acc), limit in zip(
+            eval_results_acc.items(), limits, strict=True
+        ):
+            task = acc["task"]
+            task.apply_filters()
+
+            ### Collect values of metrics on all datapoints ###
+            # # unpack results and sort back in order and return control to Task
+            # TODO: make it possible to use a different metric per filter
+            # Pre-process task.instances to group by doc_id
+            instances_by_doc_id = defaultdict(list)
+            for instance in task.instances:
+                instances_by_doc_id[instance.doc_id].append(instance)
+            # Sort instances within each group
+            for instances in instances_by_doc_id.values():
+                instances.sort(key=lambda x: x.idx)
+            # iterate over different filters used
+            for filter_key in task.instances[0].filtered_resps:
+                indices = samples.get(task_name, None) if samples is not None else None
+                doc_iterator = task.doc_iterator(
+                    rank=RANK,
+                    limit=limit,
+                    world_size=WORLD_SIZE,
+                    samples=indices,
                 )
-                if log_samples:
-                    target = task.doc_to_target(doc)
-                    example = {
-                        "doc_id": doc_id_true,
-                        "doc": doc,
-                        "target": target,
-                        "arguments": [req.args for req in requests],
-                        "resps": [req.resps for req in requests],
-                        "filtered_resps": [
-                            req.filtered_resps[filter_key] for req in requests
-                        ],
-                        "filter": filter_key,
-                        "metrics": list(metrics.keys()),
-                        "doc_hash": hash_string(
-                            json.dumps(
-                                requests[0].doc,
-                                indent=2,
-                                default=handle_non_serializable,
-                                ensure_ascii=False,
-                            )
-                        ),
-                        "prompt_hash": hash_string(requests[0].arguments[0]),
-                        "target_hash": hash_string(str(target)),
-                    }
-                    example.update(metrics)
-                    acc["logged_samples"].append(example)
-                for metric, value in metrics.items():
-                    acc["raw_metrics"][(metric, filter_key)].append(value)
+                for doc_id, doc in doc_iterator:
+                    doc_id_true = indices[doc_id] if indices else doc_id
+                    requests = instances_by_doc_id[doc_id]
+                    metrics = task.process_results(
+                        doc, [req.filtered_resps[filter_key] for req in requests]
+                    )
+                    if log_samples:
+                        target = task.doc_to_target(doc)
+                        example = {
+                            "doc_id": doc_id_true,
+                            "doc": doc,
+                            "target": target,
+                            "arguments": [req.args for req in requests],
+                            "resps": [req.resps for req in requests],
+                            "filtered_resps": [
+                                req.filtered_resps[filter_key] for req in requests
+                            ],
+                            "filter": filter_key,
+                            "metrics": list(metrics.keys()),
+                            "doc_hash": hash_string(
+                                json.dumps(
+                                    requests[0].doc,
+                                    indent=2,
+                                    default=handle_non_serializable,
+                                    ensure_ascii=False,
+                                )
+                            ),
+                            "prompt_hash": hash_string(requests[0].arguments[0]),
+                            "target_hash": hash_string(str(target)),
+                        }
+                        example.update(metrics)
+                        acc["logged_samples"].append(example)
+                    for metric, value in metrics.items():
+                        acc["raw_metrics"][(metric, filter_key)].append(value)
 
     if WORLD_SIZE > 1:
         # Gather all sample metrics across ranks, keyed by task name.

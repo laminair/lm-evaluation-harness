@@ -92,6 +92,14 @@ class Run(SubCommand):
             help="Model arguments as 'key=val,key2=val2' or `key=val` `key2=val2`",
         )
         model_group.add_argument(
+            "--router_config",
+            "-r",
+            type=str,
+            default=None,
+            metavar="<path>",
+            help="Path to router config YAML (enables RouterLM with multi-model routing)",
+        )
+        model_group.add_argument(
             "--apply_chat_template",
             type=str,
             nargs="?",
@@ -413,6 +421,7 @@ class Run(SubCommand):
             fewshot_random_seed=cfg.seed[3] if cfg.seed else None,
             confirm_run_unsafe_code=cfg.confirm_run_unsafe_code,
             metadata=cfg.metadata,
+            router_config=cfg.router_config,
         )
 
         # Process results

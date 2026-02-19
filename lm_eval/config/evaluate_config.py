@@ -64,6 +64,9 @@ class EvaluatorConfig:
     model_args: dict = field(
         default_factory=dict, metadata={"help": "Arguments for model initialization"}
     )
+    router_config: str | None = field(
+        default=None, metadata={"help": "Path to router config YAML for RouterLM"}
+    )
     tasks: str | list[str] = field(
         default_factory=list,
         metadata={"help": "Comma-separated list of task names to evaluate"},

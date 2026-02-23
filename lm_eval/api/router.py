@@ -45,6 +45,9 @@ class OutcomeEvent:
 
     routing_metadata: dict[str, Any] = field(default_factory=dict)
 
+    latency_ms: dict[str, float] = field(default_factory=dict)
+    energy_joules: dict[str, float] = field(default_factory=dict)
+
 
 class RoutingCallback(Protocol):
     def __call__(

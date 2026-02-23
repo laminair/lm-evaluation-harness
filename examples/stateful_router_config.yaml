@@ -1,0 +1,45 @@
+# Stateful Router Configuration Example
+# Demonstrates a stateful router with classifier-based routing
+#
+# Usage:
+#   from examples.stateful_router import StatefulRouter
+#   from lm_eval.models.router import RouterLM
+#
+#   router = StatefulRouter.from_yaml("examples/stateful_router_config.yaml")
+#   router_lm = RouterLM.from_router(router)
+#   results = evaluator.simple_evaluate(model=router_lm, tasks=["hellaswag"])
+
+models:
+  small_model:
+    type: hf
+    pretrained: gpt2
+    dtype: float32
+    metadata:
+      params_billion: 0.124
+      cost_per_1k_tokens: 0.00001
+      category: small
+
+  large_model:
+    type: hf
+    pretrained: gpt2-medium
+    dtype: float32
+    metadata:
+      params_billion: 0.355
+      cost_per_1k_tokens: 0.00003
+      category: medium
+
+router:
+  # Initial routing weights (will be updated by learning)
+  weights:
+    small_model: 0.6
+    large_model: 0.4
+
+  # Learning parameters
+  learning_rate: 0.01
+  exploration_rate: 0.15
+
+  # Classifier configuration
+  classifier:
+    input_dim: 768
+    hidden_dim: 256
+    accum_steps: 32

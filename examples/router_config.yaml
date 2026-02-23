@@ -12,28 +12,21 @@ models:
     type: hf
     pretrained: gpt2
     dtype: float32
+    metadata:
+      params_billion: 0.124
+      cost_per_1k_tokens: 0.00001
   
   # Larger model for complex queries
   large_model:
     type: hf
     pretrained: gpt2-medium
     dtype: float32
+    metadata:
+      params_billion: 0.355
+      cost_per_1k_tokens: 0.00003
 
 # Routing configuration
 routing:
-  # Default primary model (required)
-  primary_model: small_model
-  
-  # Shadow routing mode:
-  # - "none": No shadow routing (only primary model runs)
-  # - "all": Run all models on every request
-  # - "sampled": Randomly sample shadow models
-  shadow_mode: none
-  
-  # When shadow_mode is "sampled", this fraction of available models
-  # will be randomly selected as shadow models (0.0 to 1.0)
-  shadow_sample_rate: 0.5
-  
   # Enable adaptive mode - provides feedback to router after each evaluation
   # When true, the router can learn from outcomes during the evaluation run
   adaptive: false
@@ -42,8 +35,7 @@ routing:
   # Format: "module.path:function_name"
   # The function should accept (request, context, state) and return:
   #   - A string (model ID) for simple routing
-  #   - A dict with "primary", "shadow", "metadata" keys
-  #   - A RoutingDecision object
+  #   - A RoutingDecision object with model and metadata
   routing_callback: my_router.algorithm:route_request
   
   # Callback function for outcome feedback (optional)

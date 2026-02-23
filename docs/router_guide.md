@@ -17,13 +17,18 @@ models:
   small:
     type: hf
     pretrained: gpt2
+    metadata:
+      params_billion: 0.124
+      cost_per_1k_tokens: 0.00001
   large:
     type: hf
     pretrained: gpt2-medium
+    metadata:
+      params_billion: 0.355
+      cost_per_1k_tokens: 0.00003
 
 routing:
-  primary_model: small
-  shadow_mode: none
+  adaptive: false
 ```
 
 Run evaluation with the router:
@@ -44,39 +49,41 @@ models:
     type: hf
     pretrained: gpt2
     dtype: float32
+    metadata:
+      params_billion: 0.124
+      cost_per_1k_tokens: 0.00001
   
   gpt_large:
     type: hf
     pretrained: gpt2-medium
     dtype: float32
+    metadata:
+      params_billion: 0.355
+      cost_per_1k_tokens: 0.00003
   
   vllm_model:
     type: vllm
     pretrained: meta-llama/Llama-2-7b-hf
     tensor_parallel_size: 2
+    metadata:
+      params_billion: 7
+      cost_per_1k_tokens: 0.0005
 ```
+
+The `metadata` section is optional and can contain any information your router needs (e.g., `params_billion`, `cost_per_1k_tokens`).
 
 ### Routing Configuration
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `primary_model` | string | first model | Default model to route requests to |
-| `shadow_mode` | string | `"none"` | Shadow routing mode: `"none"`, `"all"`, or `"sampled"` |
-| `shadow_sample_rate` | float | `0.5` | Fraction of models to sample when `shadow_mode: sampled` |
 | `adaptive` | bool | `false` | Enable online learning with outcome feedback |
 | `routing_callback` | string | none | Python path to routing function |
 | `outcome_callback` | string | none | Python path to outcome feedback function |
 | `initial_state` | dict | `{}` | Initial state passed to callbacks |
 
-### Shadow Routing Modes
-
-- **`none`**: Only the primary model executes each request
-- **`all`**: All models execute each request (for training data collection)
-- **`sampled`**: Random subset of models execute each request
-
 ## Writing Routing Callbacks
 
-A routing callback decides which model(s) should handle each request.
+A routing callback decides which model should handle each request.
 
 ### Function Signature
 
@@ -105,17 +112,16 @@ def route_request(
 
 The callback can return:
 
-1. **String**: Model ID to route to (no shadow evaluation)
+1. **String**: Model ID to route to
    ```python
    return "large_model"
    ```
 
-2. **RoutingDecision**: Primary model with optional shadow models
+2. **RoutingDecision**: Model with optional metadata
    ```python
    from lm_eval.api.router import RoutingDecision
    return RoutingDecision(
-       primary_model="large_model",
-       shadow_models=["small_model"],
+       model="large_model",
        metadata={"reason": "complex_query"}
    )
    ```
@@ -123,8 +129,7 @@ The callback can return:
 3. **Dict**: Shorthand for RoutingDecision
    ```python
    return {
-       "primary": "large_model",
-       "shadow": ["small_model"],
+       "model": "large_model",
        "metadata": {"reason": "complex_query"}
    }
    ```
@@ -147,7 +152,6 @@ def route_by_length(request, context, state):
 Configuration:
 ```yaml
 routing:
-  primary_model: small_model
   routing_callback: my_router.length_router:route_by_length
   initial_state:
     length_threshold: 500
@@ -174,7 +178,6 @@ def route_by_task(request, context, state):
 Configuration:
 ```yaml
 routing:
-  primary_model: small_model
   routing_callback: my_router.task_router:route_by_task
   initial_state:
     task_routes:
@@ -221,14 +224,13 @@ def on_outcome(event: OutcomeEvent, state: dict[str, Any]) -> None:
 | `task_name` | str | Task name |
 | `doc_id` | int | Document index |
 | `doc` | dict | Document content |
-| `primary_model` | str | Model that was used for metrics |
-| `shadow_models` | list[str] | Shadow models that were evaluated |
-| `all_responses` | dict | Model ID → response for all models |
-| `primary_metrics` | dict | Metrics for primary model |
-| `primary_correct` | bool | Whether primary model was correct |
-| `all_metrics` | dict | Model ID → metrics dict for all models |
-| `all_correct` | dict | Model ID → bool for all models |
+| `model` | str | Model that was used |
+| `response` | Any | Model's response |
+| `metrics` | dict | Evaluation metrics |
+| `correct` | bool | Whether the answer was correct |
 | `routing_metadata` | dict | Metadata from routing decision |
+| `latency_ms` | float | Latency in milliseconds |
+| `energy_joules` | float | Energy consumption (if monitored) |
 
 ### Example: Update Bandit Scores
 
@@ -240,10 +242,9 @@ def update_bandit_scores(event, state):
     scores = state.setdefault("model_scores", {})
     alpha = state.get("learning_rate", 0.1)
     
-    for model_id, correct in event.all_correct.items():
-        current = scores.get(model_id, 0.5)
-        reward = 1.0 if correct else 0.0
-        scores[model_id] = (1 - alpha) * current + alpha * reward
+    current = scores.get(event.model, 0.5)
+    reward = 1.0 if event.correct else 0.0
+    scores[event.model] = (1 - alpha) * current + alpha * reward
     
     # Decay epsilon over time
     epsilon = state.get("epsilon", 0.1)
@@ -253,9 +254,7 @@ def update_bandit_scores(event, state):
 Configuration for adaptive routing:
 ```yaml
 routing:
-  primary_model: small_model
   adaptive: true
-  shadow_mode: all
   routing_callback: my_router.bandit:epsilon_greedy_route
   outcome_callback: my_router.bandit:update_bandit_scores
   initial_state:
@@ -273,21 +272,191 @@ When `adaptive: true` is set:
 1. The router processes requests one document at a time
 2. After each document, `outcome_callback` is called with results
 3. The callback can update `state` to influence future routing
-4. Primary model metrics are used for final evaluation
 
 This enables online learning algorithms to adapt during a single evaluation run.
 
-## Shadow Routing for Training
+## Calling Multiple Models from Router
 
-Use shadow routing to collect data for training a router model:
+If your router needs to evaluate multiple models (e.g., for dataset creation or comparison), you can call models directly:
 
-```yaml
-routing:
-  primary_model: small_model
-  shadow_mode: all
+```python
+class DatasetCreatingRouter:
+    def __init__(self, models):
+        self._models = models
+    
+    @property
+    def models(self):
+        return self._models
+    
+    def route(self, request, context, state):
+        # Get the selected model
+        selected = self._select_model(request)
+        
+        # Optionally call all models for dataset creation
+        if state.get("capture_all", False):
+            for model_id, model in self._models.items():
+                response = model.generate_until([request])[0]
+                self._store_response(request, model_id, response)
+        
+        # Return the selected model for evaluation
+        return selected
+    
+    def update(self, event, state):
+        pass
 ```
 
-All models will evaluate every request. The `all_metrics` and `all_correct` fields in `OutcomeEvent` contain results for all models, which you can log for later analysis.
+## Class-Based Routers (Recommended)
+
+For complex routers with stateful models (e.g., neural classifiers), use the class-based pattern with `RouterLM.from_router()`.
+
+### Required Interface
+
+Your router class must implement:
+
+```python
+class MyRouter:
+    @property
+    def models(self) -> dict[str, LM]:
+        """Return dict of model_id -> LM instance."""
+        return self._models
+    
+    def route(self, request: Instance, context: RoutingContext, state: dict) -> str | RoutingDecision:
+        """Make routing decision."""
+        ...
+    
+    def update(self, event: OutcomeEvent, state: dict) -> None:
+        """Process outcome feedback."""
+        ...
+```
+
+### Optional Methods
+
+```python
+def get_state(self) -> dict:
+    """Return serializable state for checkpointing."""
+    ...
+
+def set_state(self, state: dict) -> None:
+    """Restore state from checkpoint."""
+    ...
+
+def seed(self, seed: int) -> None:
+    """Set random seed for reproducibility."""
+    ...
+```
+
+### Complete Example
+
+```python
+# my_router/classifier_router.py
+import torch
+import torch.nn as nn
+from lm_eval.api.model import LM
+from lm_eval.api.router import RoutingContext, RoutingDecision, OutcomeEvent
+from lm_eval.models.router import RouterLM
+
+class ClassifierRouter:
+    """Routes based on a trained classifier."""
+    
+    def __init__(self, models: dict[str, LM], classifier_path: str):
+        self._models = models
+        self.classifier = self._load_classifier(classifier_path)
+        self.outcomes_received = 0
+    
+    def _load_classifier(self, path: str) -> nn.Module:
+        classifier = nn.Sequential(
+            nn.Linear(768, 256),
+            nn.ReLU(),
+            nn.Linear(256, len(self._models))
+        )
+        classifier.load_state_dict(torch.load(path))
+        classifier.eval()
+        return classifier
+    
+    @property
+    def models(self) -> dict[str, LM]:
+        return self._models
+    
+    def route(self, request, context, state):
+        """Route based on classifier prediction."""
+        # Get embedding from context (your logic here)
+        embedding = self._get_embedding(context)
+        
+        with torch.no_grad():
+            logits = self.classifier(embedding)
+            model_idx = logits.argmax().item()
+        
+        model_ids = list(self._models.keys())
+        return model_ids[model_idx]
+    
+    def update(self, event, state):
+        """Track outcomes (can be used for fine-tuning)."""
+        self.outcomes_received += 1
+    
+    def get_state(self):
+        return {"outcomes_received": self.outcomes_received}
+    
+    def set_state(self, state):
+        self.outcomes_received = state.get("outcomes_received", 0)
+
+# Usage
+from lm_eval.models.huggingface import HFLM
+
+models = {
+    "small": HFLM(pretrained="gpt2"),
+    "large": HFLM(pretrained="gpt2-medium"),
+}
+
+router = ClassifierRouter(models, classifier_path="classifier.pt")
+router_lm = RouterLM.from_router(router)
+
+# Run evaluation
+# lm-eval will use router.route() and router.update() automatically
+```
+
+### Loading Models from YAML
+
+For complex setups, load models from a YAML config:
+
+```yaml
+# router_config.yaml
+models:
+  small:
+    type: hf
+    pretrained: gpt2
+    metadata:
+      params_billion: 0.124
+  large:
+    type: hf
+    pretrained: gpt2-medium
+    metadata:
+      params_billion: 0.355
+```
+
+```python
+from lm_eval.models.router import RouterLM
+from lm_eval.api.router import RoutingContext, RoutingDecision, OutcomeEvent
+
+class MyRouter:
+    def __init__(self):
+        self._models = {}
+    
+    @property
+    def models(self):
+        return self._models
+    
+    def route(self, request, context, state):
+        return "small"
+    
+    def update(self, event, state):
+        pass
+
+# Create empty RouterLM to parse config, then attach to your router
+base = RouterLM(config_path="router_config.yaml")
+router = MyRouter()
+router._models = base.models
+router_lm = RouterLM.from_router(router)
+```
 
 ## Complete Example: MESS+ Style Router
 
@@ -312,16 +481,12 @@ def mess_route(request, context, state):
     
     # Epsilon-greedy exploration
     if random.random() < epsilon:
-        primary = random.choice(models)
+        selected = random.choice(models)
     else:
-        primary = max(scores, key=scores.get)
-    
-    # Always evaluate shadows for learning
-    shadows = [m for m in models if m != primary]
+        selected = max(scores, key=scores.get)
     
     return RoutingDecision(
-        primary_model=primary,
-        shadow_models=shadows,
+        model=selected,
         metadata={"features": features}
     )
 
@@ -330,19 +495,18 @@ def mess_update(event, state):
     scores = state.setdefault("model_scores", {})
     alpha = state.get("learning_rate", 0.1)
     
-    for model_id, correct in event.all_correct.items():
-        current = scores.get(model_id, 0.5)
-        reward = 1.0 if correct else 0.0
-        scores[model_id] = (1 - alpha) * current + alpha * reward
+    current = scores.get(event.model, 0.5)
+    reward = 1.0 if event.correct else 0.0
+    scores[event.model] = (1 - alpha) * current + alpha * reward
     
     # Log for analysis
     history = state.setdefault("history", [])
     history.append({
         "task": event.task_name,
         "doc_id": event.doc_id,
-        "primary": event.primary_model,
-        "correct": event.primary_correct,
-        "all_correct": event.all_correct,
+        "model": event.model,
+        "correct": event.correct,
+        "latency_ms": event.latency_ms,
     })
 ```
 
@@ -352,14 +516,16 @@ models:
   small:
     type: hf
     pretrained: gpt2
+    metadata:
+      params_billion: 0.124
   large:
     type: hf
     pretrained: gpt2-medium
+    metadata:
+      params_billion: 0.355
 
 routing:
-  primary_model: small
   adaptive: true
-  shadow_mode: all
   routing_callback: my_router.mess_plus:mess_route
   outcome_callback: my_router.mess_plus:mess_update
   initial_state:
@@ -392,9 +558,8 @@ class RoutingContext:
 ```python
 @dataclass
 class RoutingDecision:
-    primary_model: str                 # Model to use for metrics
-    shadow_models: list[str]           # Models to evaluate for learning
-    metadata: dict[str, Any]           # Custom metadata
+    model: str                      # Model to route to
+    metadata: dict[str, Any]        # Custom metadata
 ```
 
 ### OutcomeEvent
@@ -402,32 +567,26 @@ class RoutingDecision:
 ```python
 @dataclass
 class OutcomeEvent:
-    request: Instance                  # Original request
-    task_name: str                     # Task name
-    doc_id: int                        # Document index
-    doc: dict[str, Any]                # Document content
-    primary_model: str                 # Primary model ID
-    shadow_models: list[str]           # Shadow model IDs
-    all_responses: dict[str, Any]      # Model ID → response
-    primary_metrics: dict[str, float]  # Primary model metrics
-    primary_correct: bool              # Primary model correctness
-    all_metrics: dict[str, dict]       # Model ID → metrics
-    all_correct: dict[str, bool]       # Model ID → correctness
-    routing_metadata: dict[str, Any]   # Routing decision metadata
-    latency_ms: dict[str, float]       # Model ID → latency in ms
-    energy_joules: dict[str, float]    # Model ID → energy in J (if monitored)
+    request: Instance               # Original request
+    task_name: str                  # Task name
+    doc_id: int                     # Document index
+    doc: dict[str, Any]             # Document content
+    model: str                      # Model ID that was used
+    response: Any                   # Model's response
+    metrics: dict[str, float]       # Evaluation metrics
+    correct: bool                   # Whether correct
+    routing_metadata: dict[str, Any]  # Routing decision metadata
+    latency_ms: float               # Latency in milliseconds
+    energy_joules: float            # Energy in joules (if monitored)
 ```
 
 ## Troubleshooting
 
 ### Model not found error
-Ensure model IDs in `routing.primary_model` and callback returns match the keys in `models`.
+Ensure model IDs returned by your callback match the keys in `models`.
 
 ### Callback not loading
 Verify the Python path format: `module.submodule:function_name`. The module must be importable.
-
-### Shadow models not executing
-Check that `shadow_mode` is not set to `"none"`, or that your callback returns shadow models in the `RoutingDecision`.
 
 ### Adaptive mode not working
 Ensure both `adaptive: true` and an `outcome_callback` are configured.

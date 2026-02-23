@@ -67,8 +67,6 @@ def router_config_yaml(tmp_path: Path) -> str:
             "model_b": {"type": "dummy"},
         },
         "routing": {
-            "primary_model": "model_a",
-            "shadow_mode": "none",
             "adaptive": False,
         },
     }
@@ -117,7 +115,7 @@ class TestRouterConfig:
         config = RouterConfig.from_yaml(router_config_yaml)
         assert "model_a" in config.models
         assert "model_b" in config.models
-        assert config.routing["primary_model"] == "model_a"
+        assert config.routing.get("adaptive") == False
 
     def test_config_missing_file(self):
         with pytest.raises(FileNotFoundError):
@@ -137,7 +135,7 @@ class TestRouterConfig:
 
 
 class TestRoutingDecision:
-    def test_decision_with_string_primary(
+    def test_decision_with_string_model(
         self, router_with_mocks: RouterLM, sample_instance: Instance
     ):
         def routing_callback(request, context, state):
@@ -146,37 +144,33 @@ class TestRoutingDecision:
         router_with_mocks._routing_callback = routing_callback
         decision = router_with_mocks._make_routing_decision(sample_instance)
 
-        assert decision.primary_model == "model_b"
-        assert decision.shadow_models == []
+        assert decision.model == "model_b"
 
     def test_decision_with_routing_decision_object(
         self, router_with_mocks: RouterLM, sample_instance: Instance
     ):
         def routing_callback(request, context, state):
             return RoutingDecision(
-                primary_model="model_a",
-                shadow_models=["model_b"],
+                model="model_a",
                 metadata={"reason": "complex query"},
             )
 
         router_with_mocks._routing_callback = routing_callback
         decision = router_with_mocks._make_routing_decision(sample_instance)
 
-        assert decision.primary_model == "model_a"
-        assert decision.shadow_models == ["model_b"]
+        assert decision.model == "model_a"
         assert decision.metadata["reason"] == "complex query"
 
     def test_decision_with_dict(
         self, router_with_mocks: RouterLM, sample_instance: Instance
     ):
         def routing_callback(request, context, state):
-            return {"primary": "model_b", "shadow": ["model_a"]}
+            return {"model": "model_b"}
 
         router_with_mocks._routing_callback = routing_callback
         decision = router_with_mocks._make_routing_decision(sample_instance)
 
-        assert decision.primary_model == "model_b"
-        assert decision.shadow_models == ["model_a"]
+        assert decision.model == "model_b"
 
     def test_no_callback_uses_default(
         self, router_with_mocks: RouterLM, sample_instance: Instance
@@ -184,39 +178,7 @@ class TestRoutingDecision:
         router_with_mocks._routing_callback = None
         decision = router_with_mocks._make_routing_decision(sample_instance)
 
-        assert decision.primary_model == "model_a"
-
-
-# ============== SHADOW MODE TESTS ==============
-
-
-class TestShadowRouting:
-    def test_shadow_mode_all(
-        self, router_with_mocks: RouterLM, sample_instance: Instance
-    ):
-        router_with_mocks._shadow_mode = "all"
-        decision = router_with_mocks._make_routing_decision(sample_instance)
-
-        assert decision.primary_model == "model_a"
-        assert "model_b" in decision.shadow_models
-
-    def test_shadow_mode_none(
-        self, router_with_mocks: RouterLM, sample_instance: Instance
-    ):
-        router_with_mocks._shadow_mode = "none"
-        decision = router_with_mocks._make_routing_decision(sample_instance)
-
-        assert len(decision.shadow_models) == 0
-
-    def test_shadow_mode_sampled(
-        self, router_with_mocks: RouterLM, sample_instance: Instance
-    ):
-        router_with_mocks._shadow_mode = "sampled"
-        router_with_mocks._shadow_sample_rate = 1.0
-        decision = router_with_mocks._make_routing_decision(sample_instance)
-
-        assert decision.primary_model == "model_a"
-        assert "model_b" in decision.shadow_models
+        assert decision.model == "model_a"
 
 
 # ============== PENDING DECISION TESTS ==============
@@ -227,20 +189,6 @@ class TestPendingDecisions:
         self, router_with_mocks: RouterLM, sample_instance: Instance
     ):
         router_with_mocks._adaptive = True
-        router_with_mocks.loglikelihood([sample_instance])
-
-        key = (
-            sample_instance.task_name,
-            sample_instance.doc_id,
-            sample_instance.idx,
-        )
-        assert key in router_with_mocks._pending_decisions
-
-    def test_pending_decision_stored_with_shadow(
-        self, router_with_mocks: RouterLM, sample_instance: Instance
-    ):
-        router_with_mocks._adaptive = False
-        router_with_mocks._shadow_mode = "all"
         router_with_mocks.loglikelihood([sample_instance])
 
         key = (
@@ -263,7 +211,7 @@ class TestPendingDecisions:
         )
 
         assert decision is not None
-        assert decision.primary_model == "model_a"
+        assert decision.model == "model_a"
 
         decision2 = router_with_mocks.get_pending_decision(
             sample_instance.task_name,
@@ -296,19 +244,16 @@ class TestOutcomeCallbacks:
             task_name="test_task",
             doc_id=0,
             doc={},
-            primary_model="model_a",
-            shadow_models=[],
-            all_responses={"model_a": "response"},
-            primary_metrics={"acc": 1.0},
-            primary_correct=True,
-            all_metrics={"model_a": {"acc": 1.0}},
-            all_correct={"model_a": True},
+            model="model_a",
+            response="test response",
+            metrics={"acc": 1.0},
+            correct=True,
         )
 
         router_with_mocks.on_outcome(event)
 
         assert len(events_received) == 1
-        assert events_received[0].primary_correct is True
+        assert events_received[0].correct is True
 
     def test_state_persists_across_callbacks(
         self, router_with_mocks: RouterLM, sample_instance: Instance
@@ -335,13 +280,10 @@ class TestOutcomeCallbacks:
             task_name="test_task",
             doc_id=0,
             doc={},
-            primary_model="model_a",
-            shadow_models=[],
-            all_responses={"model_a": "response"},
-            primary_metrics={"acc": 1.0},
-            primary_correct=True,
-            all_metrics={"model_a": {"acc": 1.0}},
-            all_correct={"model_a": True},
+            model="model_a",
+            response="test response",
+            metrics={"acc": 1.0},
+            correct=True,
         )
 
         router_with_mocks.on_outcome(event)
@@ -372,7 +314,7 @@ class TestLoadCallback:
 
 
 class TestModelExecution:
-    def test_loglikelihood_routes_to_primary(
+    def test_loglikelihood_routes_to_model(
         self, router_with_mocks: RouterLM, sample_instance: Instance
     ):
         results = router_with_mocks.loglikelihood([sample_instance])
@@ -380,7 +322,7 @@ class TestModelExecution:
         assert len(results) == 1
         router_with_mocks._models["model_a"].loglikelihood.assert_called_once()
 
-    def test_generate_until_routes_to_primary(
+    def test_generate_until_routes_to_model(
         self, router_with_mocks: RouterLM, sample_generate_instance: Instance
     ):
         results = router_with_mocks.generate_until([sample_generate_instance])
@@ -388,7 +330,7 @@ class TestModelExecution:
         assert len(results) == 1
         router_with_mocks._models["model_a"].generate_until.assert_called_once()
 
-    def test_loglikelihood_rolling_routes_to_primary(self, router_with_mocks: RouterLM):
+    def test_loglikelihood_rolling_routes_to_model(self, router_with_mocks: RouterLM):
         instance = Instance(
             request_type="loglikelihood_rolling",
             doc={"text": "hello world"},
@@ -402,21 +344,23 @@ class TestModelExecution:
         assert len(results) == 1
         router_with_mocks._models["model_a"].loglikelihood_rolling.assert_called_once()
 
-    def test_shadow_models_executed(
+    def test_routes_to_selected_model(
         self, router_with_mocks: RouterLM, sample_instance: Instance
     ):
-        router_with_mocks._shadow_mode = "all"
-        router_with_mocks.loglikelihood([sample_instance])
+        def routing_callback(request, context, state):
+            return "model_b"
 
-        router_with_mocks._models["model_a"].loglikelihood.assert_called()
-        router_with_mocks._models["model_b"].loglikelihood.assert_called()
+        router_with_mocks._routing_callback = routing_callback
+        decision = router_with_mocks._make_routing_decision(sample_instance)
+
+        assert decision.model == "model_b"
 
 
 # ============== ERROR HANDLING TESTS ==============
 
 
 class TestErrorHandling:
-    def test_invalid_primary_model(
+    def test_invalid_model(
         self, router_with_mocks: RouterLM, sample_instance: Instance
     ):
         def bad_callback(request, context, state):
@@ -424,21 +368,7 @@ class TestErrorHandling:
 
         router_with_mocks._routing_callback = bad_callback
 
-        with pytest.raises(ValueError, match="Primary model.*not found"):
-            router_with_mocks._make_routing_decision(sample_instance)
-
-    def test_invalid_shadow_model(
-        self, router_with_mocks: RouterLM, sample_instance: Instance
-    ):
-        def bad_callback(request, context, state):
-            return RoutingDecision(
-                primary_model="model_a",
-                shadow_models=["nonexistent_shadow"],
-            )
-
-        router_with_mocks._routing_callback = bad_callback
-
-        with pytest.raises(ValueError, match="Shadow model.*not found"):
+        with pytest.raises(ValueError, match="Model.*not found"):
             router_with_mocks._make_routing_decision(sample_instance)
 
 
@@ -459,11 +389,6 @@ class TestFromRouter:
 
         assert router_lm._routing_callback == mock_router.route
         assert router_lm._outcome_callback == mock_router.update
-
-    def test_from_router_sets_primary_model(self, mock_router: MagicMock):
-        router_lm = RouterLM.from_router(mock_router)
-
-        assert router_lm.primary_model == "model_a"
 
     def test_from_router_stores_router_instance(self, mock_router: MagicMock):
         router_lm = RouterLM.from_router(mock_router)
@@ -514,13 +439,12 @@ class TestLatencyMeasurement:
         )
 
         assert decision is not None
-        assert "model_a" in decision.latencies
-        assert decision.latencies["model_a"] >= 0
+        assert decision.latency_ms >= 0
 
-    def test_latency_measured_for_shadows(
+    def test_latency_is_float(
         self, router_with_mocks: RouterLM, sample_instance: Instance
     ):
-        router_with_mocks._shadow_mode = "all"
+        router_with_mocks._adaptive = True
         router_with_mocks.loglikelihood([sample_instance])
 
         decision = router_with_mocks.get_pending_decision(
@@ -530,8 +454,7 @@ class TestLatencyMeasurement:
         )
 
         assert decision is not None
-        assert "model_a" in decision.latencies
-        assert "model_b" in decision.latencies
+        assert isinstance(decision.latency_ms, float)
 
 
 # ============== STATE MANAGEMENT TESTS ==============
@@ -546,7 +469,6 @@ class TestRouterStateManagement:
 
     def test_set_state_restores_state(self, router_with_mocks: RouterLM):
         router_with_mocks._state = {"original": "value"}
-        router_with_mocks._shadow_mode = "all"
 
         checkpoint = router_with_mocks.get_state()
         checkpoint["router_state"]["new"] = "data"
@@ -555,7 +477,6 @@ class TestRouterStateManagement:
         router_with_mocks.set_state(checkpoint)
 
         assert router_with_mocks.state["new"] == "data"
-        assert router_with_mocks._shadow_mode == "all"
 
     def test_seed_method(self, router_with_mocks: RouterLM):
         router_with_mocks.seed(123)
@@ -629,7 +550,8 @@ class TestWeightedRandomRouterIntegration:
 
         result = WeightedRandomRouter.route_classmethod(request, context, state)
 
-        assert result in ("model_a", "model_b") or isinstance(result, RoutingDecision)
+        assert isinstance(result, RoutingDecision)
+        assert result.model in ("model_a", "model_b")
 
     def test_router_update_modifies_weights(self):
         from examples.weighted_random_router import WeightedRandomRouter
@@ -644,13 +566,10 @@ class TestWeightedRandomRouterIntegration:
             task_name="test",
             doc_id=0,
             doc={},
-            primary_model="model_a",
-            shadow_models=["model_b"],
-            all_responses={},
-            primary_metrics={},
-            primary_correct=True,
-            all_metrics={},
-            all_correct={"model_a": True, "model_b": False},
+            model="model_a",
+            response="test",
+            metrics={},
+            correct=True,
         )
 
         original_weight_a = state["weights"]["model_a"]
@@ -676,7 +595,8 @@ class TestWeightedRandomRouterIntegration:
         request = MagicMock()
 
         result = router.route(request, context, {})
-        assert result in ("model_a", "model_b") or isinstance(result, RoutingDecision)
+        assert isinstance(result, RoutingDecision)
+        assert result.model in ("model_a", "model_b")
 
     def test_router_get_set_state(self):
         from examples.weighted_random_router import WeightedRandomRouter
@@ -764,17 +684,14 @@ class TestOutcomeEventFields:
             task_name="test",
             doc_id=0,
             doc={},
-            primary_model="a",
-            shadow_models=[],
-            all_responses={},
-            primary_metrics={},
-            primary_correct=True,
-            all_metrics={},
-            all_correct={},
+            model="a",
+            response="test",
+            metrics={},
+            correct=True,
         )
 
         assert hasattr(event, "latency_ms")
-        assert event.latency_ms == {}
+        assert event.latency_ms == 0.0
 
     def test_outcome_event_has_energy_field(self):
         event = OutcomeEvent(
@@ -782,17 +699,14 @@ class TestOutcomeEventFields:
             task_name="test",
             doc_id=0,
             doc={},
-            primary_model="a",
-            shadow_models=[],
-            all_responses={},
-            primary_metrics={},
-            primary_correct=True,
-            all_metrics={},
-            all_correct={},
+            model="a",
+            response="test",
+            metrics={},
+            correct=True,
         )
 
         assert hasattr(event, "energy_joules")
-        assert event.energy_joules == {}
+        assert event.energy_joules == 0.0
 
     def test_outcome_event_with_latency_and_energy(self):
         event = OutcomeEvent(
@@ -800,19 +714,20 @@ class TestOutcomeEventFields:
             task_name="test",
             doc_id=0,
             doc={},
-            primary_model="a",
-            shadow_models=["b"],
-            all_responses={},
-            primary_metrics={},
-            primary_correct=True,
-            all_metrics={},
-            all_correct={"a": True, "b": False},
-            latency_ms={"a": 10.5, "b": 25.3},
-            energy_joules={"a": 0.5, "b": 1.2},
+            model="a",
+            response="test response",
+            metrics={"acc": 0.95},
+            correct=True,
+            latency_ms=10.5,
+            energy_joules=0.5,
         )
 
-        assert event.latency_ms == {"a": 10.5, "b": 25.3}
-        assert event.energy_joules == {"a": 0.5, "b": 1.2}
+        assert event.latency_ms == 10.5
+        assert event.energy_joules == 0.5
+        assert event.model == "a"
+        assert event.response == "test response"
+        assert event.metrics == {"acc": 0.95}
+        assert event.correct is True
 
 
 # ============== PROPERTIES TESTS ==============
@@ -825,9 +740,6 @@ class TestRouterProperties:
 
         router_with_mocks._adaptive = False
         assert router_with_mocks.adaptive is False
-
-    def test_primary_model_property(self, router_with_mocks: RouterLM):
-        assert router_with_mocks.primary_model == "model_a"
 
     def test_models_property(self, router_with_mocks: RouterLM):
         models = router_with_mocks.models

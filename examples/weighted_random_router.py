@@ -18,12 +18,7 @@ This module demonstrates two usage patterns:
        weights={"small": 0.3, "large": 0.7},
        learning_rate=0.1,
    )
-   router_lm = RouterLM.from_callbacks(
-       models={"small": small_lm, "large": large_lm},
-       routing_callback=router.route,
-       outcome_callback=router.update,
-       router_instance=router,
-   )
+   router_lm = RouterLM.from_router(router)
 """
 
 from __future__ import annotations
@@ -48,7 +43,6 @@ class WeightedRandomRouter:
     Attributes:
         weights: Dictionary mapping model_id -> weight (higher = more likely)
         learning_rate: How much to boost weights on successful predictions (0-1)
-        shadow_mode: Strategy for shadow evaluation ("none", "all", "sampled")
         outcomes: List of recorded outcomes for analysis
     """
 
@@ -56,7 +50,6 @@ class WeightedRandomRouter:
         self,
         weights: dict[str, float],
         learning_rate: float = 0.1,
-        shadow_mode: str = "none",
     ):
         if not weights:
             raise ValueError("weights dictionary cannot be empty")
@@ -65,9 +58,9 @@ class WeightedRandomRouter:
 
         self.weights = dict(weights)
         self.learning_rate = learning_rate
-        self.shadow_mode = shadow_mode
         self._normalize_weights()
         self.outcomes: list[dict[str, Any]] = []
+        self._models: dict[str, Any] = {}
 
     def _normalize_weights(self) -> None:
         """Normalize weights to sum to 1.0."""
@@ -85,6 +78,16 @@ class WeightedRandomRouter:
             seed: Random seed value
         """
         random.seed(seed)
+
+    @property
+    def models(self) -> dict[str, Any]:
+        """Get the models dictionary (required by RouterLM.from_router)."""
+        return self._models
+
+    @models.setter
+    def models(self, value: dict[str, Any]) -> None:
+        """Set the models dictionary."""
+        self._models = value
 
     def select(self, model_ids: list[str] | None = None) -> str:
         """
@@ -125,61 +128,41 @@ class WeightedRandomRouter:
         """
         Make a routing decision for a request.
 
-        This is the instance method version, suitable for programmatic use
-        with RouterLM.from_callbacks().
-
         Args:
             request: The evaluation request to route
             context: Routing context with metadata
             state: State dict (ignored for instance method; uses self.weights)
 
         Returns:
-            Model ID string or RoutingDecision for shadow routing
+            Model ID string or RoutingDecision
         """
-        primary = self.select()
-
-        if self.shadow_mode == "all":
-            shadows = [m for m in self.weights.keys() if m != primary]
-            return RoutingDecision(
-                primary_model=primary,
-                shadow_models=shadows,
-                metadata={"method": "weighted_random"},
-            )
-
-        return primary
+        model = self.select()
+        return RoutingDecision(
+            model=model,
+            metadata={"method": "weighted_random"},
+        )
 
     def update(self, event: OutcomeEvent, state: dict[str, Any]) -> None:
         """
         Process an outcome event and update router state.
 
-        This is the instance method version, suitable for programmatic use
-        with RouterLM.from_callbacks().
-
         Args:
-            event: The outcome event with results from all models
+            event: The outcome event with results from the selected model
             state: State dict (ignored for instance method; uses self)
         """
         record = {
             "task": event.task_name,
             "doc_id": event.doc_id,
-            "primary_model": event.primary_model,
-            "primary_correct": event.primary_correct,
-            "all_correct": dict(event.all_correct),
+            "model": event.model,
+            "correct": event.correct,
+            "latency_ms": event.latency_ms,
             "weights_before": dict(self.weights),
         }
 
         lr = self.learning_rate
 
-        if event.primary_correct:
-            self.weights[event.primary_model] = self.weights.get(
-                event.primary_model, 1.0
-            ) * (1 + lr)
-
-        for shadow_id in event.shadow_models:
-            if event.all_correct.get(shadow_id, False):
-                self.weights[shadow_id] = self.weights.get(shadow_id, 1.0) * (
-                    1 + lr * 0.5
-                )
+        if event.correct:
+            self.weights[event.model] = self.weights.get(event.model, 1.0) * (1 + lr)
 
         self._normalize_weights()
 
@@ -194,12 +177,11 @@ class WeightedRandomRouter:
         to restore the router's state.
 
         Returns:
-            Dict containing weights, learning_rate, shadow_mode, and outcomes
+            Dict containing weights, learning_rate, and outcomes
         """
         return {
             "weights": dict(self.weights),
             "learning_rate": self.learning_rate,
-            "shadow_mode": self.shadow_mode,
             "outcomes": list(self.outcomes),
         }
 
@@ -212,7 +194,6 @@ class WeightedRandomRouter:
         """
         self.weights = dict(state.get("weights", {}))
         self.learning_rate = state.get("learning_rate", 0.1)
-        self.shadow_mode = state.get("shadow_mode", "none")
         self.outcomes = list(state.get("outcomes", []))
         self._normalize_weights()
 
@@ -224,7 +205,7 @@ class WeightedRandomRouter:
             Dictionary with current weights and outcome history
         """
         total_decisions = len(self.outcomes)
-        correct_count = sum(1 for o in self.outcomes if o.get("primary_correct", False))
+        correct_count = sum(1 for o in self.outcomes if o.get("correct", False))
 
         return {
             "weights": dict(self.weights),
@@ -251,7 +232,6 @@ class WeightedRandomRouter:
         return cls(
             weights=state.get("weights", {}),
             learning_rate=state.get("learning_rate", 0.1),
-            shadow_mode=state.get("shadow_mode", "none"),
         )
 
     @classmethod
@@ -276,17 +256,11 @@ class WeightedRandomRouter:
             Model ID string or RoutingDecision
         """
         router = cls.from_state(state)
-        primary = router.select()
-
-        if router.shadow_mode == "all":
-            shadows = [m for m in router.weights.keys() if m != primary]
-            return RoutingDecision(
-                primary_model=primary,
-                shadow_models=shadows,
-                metadata={"method": "weighted_random"},
-            )
-
-        return primary
+        model = router.select()
+        return RoutingDecision(
+            model=model,
+            metadata={"method": "weighted_random"},
+        )
 
     @classmethod
     def update_classmethod(cls, event: OutcomeEvent, state: dict[str, Any]) -> None:
@@ -297,7 +271,7 @@ class WeightedRandomRouter:
         For programmatic use, prefer the instance method update().
 
         Args:
-            event: The outcome event with results from all models
+            event: The outcome event with results from the selected model
             state: Mutable state dictionary to update
         """
         router = cls.from_state(state)
@@ -305,24 +279,18 @@ class WeightedRandomRouter:
         record = {
             "task": event.task_name,
             "doc_id": event.doc_id,
-            "primary_model": event.primary_model,
-            "primary_correct": event.primary_correct,
-            "all_correct": dict(event.all_correct),
+            "model": event.model,
+            "correct": event.correct,
+            "latency_ms": event.latency_ms,
             "weights_before": dict(router.weights),
         }
 
         lr = router.learning_rate
 
-        if event.primary_correct:
-            router.weights[event.primary_model] = router.weights.get(
-                event.primary_model, 1.0
-            ) * (1 + lr)
-
-        for shadow_id in event.shadow_models:
-            if event.all_correct.get(shadow_id, False):
-                router.weights[shadow_id] = router.weights.get(shadow_id, 1.0) * (
-                    1 + lr * 0.5
-                )
+        if event.correct:
+            router.weights[event.model] = router.weights.get(event.model, 1.0) * (
+                1 + lr
+            )
 
         router._normalize_weights()
 

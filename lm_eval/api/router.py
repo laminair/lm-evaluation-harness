@@ -20,8 +20,7 @@ class RoutingContext:
 
 @dataclass
 class RoutingDecision:
-    primary_model: str
-    shadow_models: list[str] = field(default_factory=list)
+    model: str
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
@@ -32,21 +31,16 @@ class OutcomeEvent:
     doc_id: int
     doc: dict[str, Any]
 
-    primary_model: str
-    shadow_models: list[str]
+    model: str
+    response: Any
 
-    all_responses: dict[str, Any]
-
-    primary_metrics: dict[str, float]
-    primary_correct: bool
-
-    all_metrics: dict[str, dict[str, float]]
-    all_correct: dict[str, bool]
+    metrics: dict[str, float]
+    correct: bool
 
     routing_metadata: dict[str, Any] = field(default_factory=dict)
 
-    latency_ms: dict[str, float] = field(default_factory=dict)
-    energy_joules: dict[str, float] = field(default_factory=dict)
+    latency_ms: float = 0.0
+    energy_joules: float = 0.0
 
 
 class RoutingCallback(Protocol):
@@ -65,8 +59,8 @@ class RoutingCallback(Protocol):
             state: Mutable router state (persists across calls)
 
         Returns:
-            - str: Model ID to route to (no shadow evaluation)
-            - RoutingDecision: Primary model + optional shadow models
+            - str: Model ID to route to
+            - RoutingDecision: Model to route to + metadata
         """
         ...
 
@@ -77,7 +71,7 @@ class OutcomeCallback(Protocol):
         Receive feedback after a request is evaluated.
 
         Args:
-            event: Contains request, responses, and metrics for all models
+            event: Contains request, response, metrics, and latency for the selected model
             state: Mutable router state (can be updated based on outcome)
         """
         ...

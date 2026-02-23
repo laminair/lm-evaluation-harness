@@ -28,12 +28,11 @@ eval_logger = logging.getLogger(__name__)
 
 @dataclass
 class RoutingDecisionInternal:
-    primary_model: str
-    shadow_models: list[str]
-    all_responses: dict[str, Any] = field(default_factory=dict)
+    model: str
+    response: Any = None
     metadata: dict[str, Any] = field(default_factory=dict)
-    latencies: dict[str, float] = field(default_factory=dict)
-    energies: dict[str, float] = field(default_factory=dict)
+    latency_ms: float = 0.0
+    energy_joules: float = 0.0
 
 
 @dataclass
@@ -57,7 +56,6 @@ class RouterLM(LM):
 
     Supports:
     - Per-request routing based on callback function
-    - Shadow routing (evaluate on multiple models for learning)
     - Adaptive mode with feedback (via evaluator integration)
     - Programmatic API via from_router() factory method
 
@@ -99,10 +97,6 @@ class RouterLM(LM):
         if outcome_callback_path:
             self._outcome_callback = load_callback(outcome_callback_path)
 
-        self._shadow_mode = routing_config.get("shadow_mode", "none")
-        self._primary_model_default = routing_config.get("primary_model")
-        self._shadow_sample_rate = routing_config.get("shadow_sample_rate", 0.5)
-
         self._state: dict[str, Any] = routing_config.get("initial_state", {})
         self._adaptive = routing_config.get("adaptive", False)
 
@@ -110,17 +104,9 @@ class RouterLM(LM):
             tuple[str | None, int | None, int], RoutingDecisionInternal
         ] = {}
 
-        if self._primary_model_default is None and self._models:
-            model_ids = list(self._models.keys())
-            if model_ids:
-                self._primary_model_default = model_ids[0]
-
         eval_logger.info(
             f"RouterLM initialized with {len(self._models)} models: "
             f"{list(self._models.keys())}"
-        )
-        eval_logger.info(
-            f"Shadow mode: {self._shadow_mode}, Primary: {self._primary_model_default}"
         )
 
     @classmethod
@@ -142,7 +128,6 @@ class RouterLM(LM):
         Optional methods on router:
             - .get_state() -> dict - for checkpointing
             - .set_state(state) - for restoring from checkpoint
-            - .model_info: dict[str, dict] - model metadata
 
         Args:
             router: Router instance that owns models and implements routing logic
@@ -184,11 +169,6 @@ class RouterLM(LM):
         instance._outcome_callback = router.update
         instance._router_instance = router
 
-        instance._shadow_mode = "none"
-        instance._primary_model_default = (
-            list(router.models.keys())[0] if router.models else None
-        )
-        instance._shadow_sample_rate = 0.5
         instance._state = {}
         instance._adaptive = True
         instance._pending_decisions = {}
@@ -204,7 +184,6 @@ class RouterLM(LM):
         """
         Set random seed for router decisions.
 
-        Affects shadow model sampling when shadow_mode="sampled".
         Call this before evaluation for reproducibility.
 
         Args:
@@ -226,8 +205,6 @@ class RouterLM(LM):
         """
         state = {
             "router_state": dict(self._state),
-            "shadow_mode": self._shadow_mode,
-            "primary_model": self._primary_model_default,
             "adaptive": self._adaptive,
         }
 
@@ -249,10 +226,6 @@ class RouterLM(LM):
             state: Dict previously returned by get_state()
         """
         self._state = dict(state.get("router_state", {}))
-        self._shadow_mode = state.get("shadow_mode", self._shadow_mode)
-        self._primary_model_default = state.get(
-            "primary_model", self._primary_model_default
-        )
         self._adaptive = state.get("adaptive", self._adaptive)
 
         if self._router_instance is not None and hasattr(
@@ -324,85 +297,56 @@ class RouterLM(LM):
             decision = self._routing_callback(request, context, self._state)
 
             if isinstance(decision, str):
-                primary = decision
-                shadows = []
+                model = decision
                 metadata = {}
             elif isinstance(decision, RoutingDecision):
-                primary = decision.primary_model
-                shadows = decision.shadow_models
+                model = decision.model
                 metadata = decision.metadata
             elif isinstance(decision, dict):
-                primary = decision.get("primary", self._primary_model_default)
-                shadows = decision.get("shadow", [])
+                model = decision.get("model")
                 metadata = decision.get("metadata", {})
             else:
-                primary = self._primary_model_default
-                shadows = []
-                metadata = {}
+                raise ValueError(
+                    f"Routing callback must return str or RoutingDecision, got {type(decision)}"
+                )
         else:
-            primary = self._primary_model_default
-            shadows = []
+            if not self._models:
+                raise ValueError("No models available for routing")
+            model = list(self._models.keys())[0]
             metadata = {}
 
-        if self._shadow_mode == "all":
-            shadows = [m for m in self._models.keys() if m != primary]
-        elif self._shadow_mode == "sampled":
-            available = [m for m in self._models.keys() if m != primary]
-            k = max(1, int(len(available) * self._shadow_sample_rate))
-            shadows = random.sample(available, min(k, len(available)))
-
-        if primary not in self._models:
+        if model not in self._models:
             raise ValueError(
-                f"Primary model '{primary}' not found. "
-                f"Available: {list(self._models.keys())}"
-            )
-
-        invalid_shadows = [m for m in shadows if m not in self._models]
-        if invalid_shadows:
-            raise ValueError(
-                f"Shadow model(s) {invalid_shadows} not found. "
-                f"Available: {list(self._models.keys())}"
+                f"Model '{model}' not found. Available: {list(self._models.keys())}"
             )
 
         return RoutingDecisionInternal(
-            primary_model=primary,
-            shadow_models=shadows,
+            model=model,
             metadata=metadata,
         )
 
-    def _execute_on_models(
+    def _execute_on_model(
         self,
         request: Instance,
         decision: RoutingDecisionInternal,
         method: str,
     ) -> Any:
         """
-        Execute a request on primary and shadow models.
+        Execute a request on the selected model.
 
-        Measures latency for each model execution. Energy measurement
+        Measures latency for the execution. Energy measurement
         is handled by the router instance if needed.
         """
-        all_responses = {}
-        latencies = {}
-        energies = {}
+        model = self._models[decision.model]
 
-        model_ids = [decision.primary_model] + decision.shadow_models
+        start_time = time.perf_counter()
+        response = getattr(model, method)([request])[0]
+        end_time = time.perf_counter()
 
-        for model_id in model_ids:
-            model = self._models[model_id]
+        decision.response = response
+        decision.latency_ms = (end_time - start_time) * 1000
 
-            start_time = time.perf_counter()
-            response = getattr(model, method)([request])[0]
-            end_time = time.perf_counter()
-
-            all_responses[model_id] = response
-            latencies[model_id] = (end_time - start_time) * 1000
-
-        decision.all_responses = all_responses
-        decision.latencies = latencies
-        decision.energies = energies
-
-        return all_responses[decision.primary_model]
+        return response
 
     def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
         """Route loglikelihood requests to appropriate models."""
@@ -411,11 +355,11 @@ class RouterLM(LM):
         for req in requests:
             decision = self._make_routing_decision(req)
 
-            if self._adaptive or decision.shadow_models:
+            if self._adaptive:
                 key = self._make_decision_key(req)
                 self._pending_decisions[key] = decision
 
-            result = self._execute_on_models(req, decision, "loglikelihood")
+            result = self._execute_on_model(req, decision, "loglikelihood")
             results.append(result)
 
         return results
@@ -427,11 +371,11 @@ class RouterLM(LM):
         for req in requests:
             decision = self._make_routing_decision(req)
 
-            if self._adaptive or decision.shadow_models:
+            if self._adaptive:
                 key = self._make_decision_key(req)
                 self._pending_decisions[key] = decision
 
-            result = self._execute_on_models(req, decision, "loglikelihood_rolling")
+            result = self._execute_on_model(req, decision, "loglikelihood_rolling")
             results.append(result)
 
         return results
@@ -443,11 +387,11 @@ class RouterLM(LM):
         for req in requests:
             decision = self._make_routing_decision(req)
 
-            if self._adaptive or decision.shadow_models:
+            if self._adaptive:
                 key = self._make_decision_key(req)
                 self._pending_decisions[key] = decision
 
-            result = self._execute_on_models(req, decision, "generate_until")
+            result = self._execute_on_model(req, decision, "generate_until")
             results.append(result)
 
         return results
@@ -487,11 +431,6 @@ class RouterLM(LM):
         return self._adaptive
 
     @property
-    def primary_model(self) -> str | None:
-        """Get the default primary model."""
-        return self._primary_model_default
-
-    @property
     def router_instance(self) -> Any:
         """Get the router instance (if created via from_router())."""
         return self._router_instance
@@ -499,25 +438,25 @@ class RouterLM(LM):
     def apply_chat_template(
         self, chat_history: list[dict[str, str]], add_generation_prompt: bool = True
     ) -> str:
-        """Delegate chat template to primary model."""
-        if self._primary_model_default and self._primary_model_default in self._models:
-            primary = self._models[self._primary_model_default]
-            return primary.apply_chat_template(chat_history, add_generation_prompt)
+        """Delegate chat template to first available model."""
+        if self._models:
+            first_model = next(iter(self._models.values()))
+            return first_model.apply_chat_template(chat_history, add_generation_prompt)
         raise NotImplementedError(
-            "RouterLM requires a primary model with chat template support"
+            "RouterLM requires at least one model with chat template support"
         )
 
     @property
     def tokenizer_name(self) -> str:
-        """Get tokenizer name from primary model."""
-        if self._primary_model_default and self._primary_model_default in self._models:
-            primary = self._models[self._primary_model_default]
-            return getattr(primary, "tokenizer_name", "router")
+        """Get tokenizer name from first available model."""
+        if self._models:
+            first_model = next(iter(self._models.values()))
+            return getattr(first_model, "tokenizer_name", "router")
         return "router"
 
     def chat_template(self, chat_template: bool | str = False) -> str | None:
-        """Get chat template from primary model."""
-        if self._primary_model_default and self._primary_model_default in self._models:
-            primary = self._models[self._primary_model_default]
-            return primary.chat_template(chat_template)
+        """Get chat template from first available model."""
+        if self._models:
+            first_model = next(iter(self._models.values()))
+            return first_model.chat_template(chat_template)
         return None

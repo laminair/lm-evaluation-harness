@@ -434,12 +434,11 @@ def _evaluate_adaptive(
     log_samples: bool,
 ) -> None:
     """
-    Adaptive evaluation mode for RouterLM with shadow routing.
+    Adaptive evaluation mode for RouterLM.
 
-    Processes documents one at a time, computes metrics for all models,
+    Processes documents one at a time, computes metrics,
     and provides feedback to the router for online learning.
     """
-    from lm_eval.models.router import RouterLM
     from tqdm import tqdm
 
     router_lm = lm
@@ -478,85 +477,24 @@ def _evaluate_adaptive(
                 if decision is None:
                     continue
 
-                if not decision.shadow_models:
-                    metrics = task.process_results(
-                        doc, [req.filtered_resps[filter_key] for req in requests]
-                    )
-                    primary_metric_name = list(metrics.keys())[0] if metrics else None
-                    primary_correct = (
-                        metrics.get(primary_metric_name, 0) >= 0.5
-                        if primary_metric_name
-                        else False
-                    )
-
-                    event = OutcomeEvent(
-                        request=req,
-                        task_name=task_name,
-                        doc_id=doc_id_true,
-                        doc=doc,
-                        primary_model=decision.primary_model,
-                        shadow_models=[],
-                        all_responses=decision.all_responses,
-                        primary_metrics=metrics,
-                        primary_correct=primary_correct,
-                        all_metrics={decision.primary_model: metrics},
-                        all_correct={decision.primary_model: primary_correct},
-                        routing_metadata=decision.metadata,
-                    )
-                    router_lm.on_outcome(event)
-                    continue
-
-                all_metrics = {}
-                all_correct = {}
-
-                for model_id, response in decision.all_responses.items():
-                    temp_req = type(req)(
-                        request_type=req.request_type,
-                        doc=req.doc,
-                        arguments=req.arguments,
-                        idx=req.idx,
-                        metadata=req.metadata,
-                    )
-                    temp_req.resps = (
-                        [[response]] if not isinstance(response, list) else [response]
-                    )
-                    temp_req.filtered_resps = req.filtered_resps.copy()
-
-                    temp_req.filtered_resps[filter_key] = temp_req.resps[0]
-
-                    model_metrics = task.process_results(
-                        doc, [temp_req.filtered_resps[filter_key]]
-                    )
-                    all_metrics[model_id] = model_metrics
-
-                    metric_name = (
-                        list(model_metrics.keys())[0] if model_metrics else None
-                    )
-                    all_correct[model_id] = (
-                        model_metrics.get(metric_name, 0) >= 0.5
-                        if metric_name
-                        else False
-                    )
-
-                primary_metrics = all_metrics.get(decision.primary_model, {})
-                primary_metric_name = (
-                    list(primary_metrics.keys())[0] if primary_metrics else None
+                metrics = task.process_results(
+                    doc, [req.filtered_resps[filter_key] for req in requests]
                 )
-                primary_correct = all_correct.get(decision.primary_model, False)
+                metric_name = list(metrics.keys())[0] if metrics else None
+                correct = metrics.get(metric_name, 0) >= 0.5 if metric_name else False
 
                 event = OutcomeEvent(
                     request=req,
                     task_name=task_name,
                     doc_id=doc_id_true,
                     doc=doc,
-                    primary_model=decision.primary_model,
-                    shadow_models=decision.shadow_models,
-                    all_responses=decision.all_responses,
-                    primary_metrics=primary_metrics,
-                    primary_correct=primary_correct,
-                    all_metrics=all_metrics,
-                    all_correct=all_correct,
+                    model=decision.model,
+                    response=decision.response,
+                    metrics=metrics,
+                    correct=correct,
                     routing_metadata=decision.metadata,
+                    latency_ms=decision.latency_ms,
+                    energy_joules=decision.energy_joules,
                 )
                 router_lm.on_outcome(event)
 

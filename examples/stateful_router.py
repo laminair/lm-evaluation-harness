@@ -1,22 +1,23 @@
 """
-Stateful router example with classifier-based routing and optional energy monitoring.
+Stateful router example with classifier-based routing.
 
 This demonstrates the recommended pattern for implementing stateful routers that:
 - Load and own their models from YAML config
 - Implement classifier-based routing on GPU
 - Support gradient accumulation for efficient training
-- Optionally integrate Zeus for energy monitoring
 - Support checkpointing for reproducibility
+
+Note: The router can call models directly if needed (e.g., for dataset creation).
+The RouterLM only runs the model returned by route().
 
 Usage:
     from examples.stateful_router import StatefulRouter
     from lm_eval.models.router import RouterLM
 
-    # Create router with optional energy monitoring
+    # Create router
     router = StatefulRouter.from_yaml(
         config_path="config.yaml",
         device="cuda",
-        monitor_energy=True,  # Requires: pip install zeus-ml
     )
 
     # Create RouterLM wrapper
@@ -25,7 +26,7 @@ Usage:
     # Evaluate
     results = evaluator.simple_evaluate(model=router_lm, tasks=["hellaswag"])
 
-    # Get statistics (includes energy/latency if monitored)
+    # Get statistics
     stats = router.get_stats()
 
     # Checkpoint
@@ -113,15 +114,14 @@ class SimpleClassifier(nn.Module):
 
 class StatefulRouter:
     """
-    Stateful router with classifier-based routing and optional energy monitoring.
+    Stateful router with classifier-based routing.
 
     Features:
     - Model loading from YAML config
     - Simple classifier on GPU for routing decisions
     - Epsilon-greedy exploration
     - Gradient accumulation for efficient training
-    - Optional Zeus energy monitoring
-    - Latency tracking (always on)
+    - Latency tracking
     - State checkpointing
 
     Attributes:
@@ -136,8 +136,6 @@ class StatefulRouter:
         self,
         config_path: str,
         device: str = "cuda",
-        monitor_energy: bool = False,
-        gpu_indices: list[int] | None = None,
     ):
         """
         Initialize the router.
@@ -145,8 +143,6 @@ class StatefulRouter:
         Args:
             config_path: Path to YAML config file
             device: Device for classifier ("cuda" or "cpu")
-            monitor_energy: Enable Zeus energy monitoring (requires zeus-ml)
-            gpu_indices: GPU indices for energy monitoring (default: all)
         """
         self.config = RouterConfig.from_yaml(config_path)
         self.device = device
@@ -187,23 +183,6 @@ class StatefulRouter:
 
         self.outcomes: list[dict[str, Any]] = []
 
-        self._energy_monitor = None
-        self._monitor_energy = monitor_energy
-        self._gpu_indices = gpu_indices
-
-        if monitor_energy:
-            try:
-                from zeus.monitor import ZeusMonitor
-
-                self._energy_monitor = ZeusMonitor(gpu_indices=gpu_indices)
-                logger.info("Zeus energy monitoring enabled")
-            except ImportError:
-                logger.warning(
-                    "zeus-ml not installed. Energy monitoring disabled. "
-                    "Install with: pip install zeus-ml"
-                )
-                self._monitor_energy = False
-
         logger.info(
             f"StatefulRouter initialized with {len(self.models)} models: "
             f"{list(self.models.keys())}"
@@ -214,11 +193,9 @@ class StatefulRouter:
         cls,
         config_path: str,
         device: str = "cuda",
-        monitor_energy: bool = False,
-        gpu_indices: list[int] | None = None,
     ) -> "StatefulRouter":
         """Create router from YAML config file."""
-        return cls(config_path, device, monitor_energy, gpu_indices)
+        return cls(config_path, device)
 
     def _normalize_weights(self) -> None:
         """Normalize weights to sum to 1.0."""
@@ -308,24 +285,21 @@ class StatefulRouter:
             state: State dict (unused for instance methods)
 
         Returns:
-            RoutingDecision with primary model and shadow models for learning
+            Model ID or RoutingDecision with model to use
         """
         model_ids = list(self.models.keys())
 
         if random.random() < self.exploration_rate:
-            primary = random.choice(model_ids)
+            model = random.choice(model_ids)
         else:
             with torch.no_grad():
                 features = self._extract_features(request, context)
                 logits = self.classifier(features.unsqueeze(0))
-                idx = torch.argmax(logits, dim=1).item()
-                primary = self.idx_to_model_id[idx]
-
-        shadows = [m for m in model_ids if m != primary]
+                idx = int(torch.argmax(logits, dim=1).item())
+                model = self.idx_to_model_id[idx]
 
         return RoutingDecision(
-            primary_model=primary,
-            shadow_models=shadows,
+            model=model,
             metadata={
                 "method": "classifier",
                 "exploration": random.random() < self.exploration_rate,
@@ -337,37 +311,28 @@ class StatefulRouter:
         Process outcome, train classifier with gradient accumulation.
 
         Args:
-            event: Outcome event with results from all models
+            event: Outcome event with results from the selected model
             state: State dict (unused for instance methods)
         """
         outcome_record = {
             "task": event.task_name,
             "doc_id": event.doc_id,
-            "primary_model": event.primary_model,
-            "primary_correct": event.primary_correct,
-            "all_correct": dict(event.all_correct),
-            "latency_ms": dict(event.latency_ms),
-            "energy_joules": dict(event.energy_joules),
+            "model": event.model,
+            "correct": event.correct,
+            "latency_ms": event.latency_ms,
             "weights_before": dict(self.weights),
         }
 
-        if event.primary_correct:
-            self.weights[event.primary_model] = self.weights.get(
-                event.primary_model, 0.5
-            ) * (1 + self.learning_rate)
-
-        for shadow_id in event.shadow_models:
-            if event.all_correct.get(shadow_id, False):
-                self.weights[shadow_id] = self.weights.get(shadow_id, 0.5) * (
-                    1 + self.learning_rate * 0.5
-                )
+        if event.correct:
+            self.weights[event.model] = self.weights.get(event.model, 0.5) * (
+                1 + self.learning_rate
+            )
 
         self._normalize_weights()
         outcome_record["weights_after"] = dict(self.weights)
 
-        if event.all_correct:
-            best_model = max(event.all_correct, key=event.all_correct.get)
-            target_idx = self.model_id_to_idx[best_model]
+        if event.correct:
+            target_idx = self.model_id_to_idx[event.model]
 
             features = self._extract_features(
                 event.request,
@@ -436,31 +401,22 @@ class StatefulRouter:
         Get router statistics.
 
         Returns:
-            Dict with accuracy, energy, latency, and weight statistics
+            Dict with accuracy, latency, and weight statistics
         """
         total = len(self.outcomes)
-        correct = sum(1 for o in self.outcomes if o.get("primary_correct", False))
+        correct = sum(1 for o in self.outcomes if o.get("correct", False))
 
-        total_energy = sum(
-            sum(o.get("energy_joules", {}).values()) for o in self.outcomes
-        )
-        total_latency = sum(
-            sum(o.get("latency_ms", {}).values()) for o in self.outcomes
-        )
+        total_latency = sum(o.get("latency_ms", 0) for o in self.outcomes)
 
-        per_model_energy: dict[str, float] = {}
         per_model_latency: dict[str, float] = {}
         per_model_count: dict[str, int] = {}
 
         for o in self.outcomes:
-            for model_id, energy in o.get("energy_joules", {}).items():
-                per_model_energy[model_id] = per_model_energy.get(model_id, 0) + energy
-            for model_id, latency in o.get("latency_ms", {}).items():
-                per_model_latency[model_id] = (
-                    per_model_latency.get(model_id, 0) + latency
-                )
-            model = o.get("primary_model")
+            model = o.get("model")
             if model:
+                per_model_latency[model] = per_model_latency.get(model, 0) + o.get(
+                    "latency_ms", 0
+                )
                 per_model_count[model] = per_model_count.get(model, 0) + 1
 
         return {
@@ -468,10 +424,8 @@ class StatefulRouter:
             "total_decisions": total,
             "correct_decisions": correct,
             "accuracy": correct / total if total > 0 else 0.0,
-            "total_energy_joules": total_energy,
             "total_latency_ms": total_latency,
             "avg_latency_ms": total_latency / total if total > 0 else 0.0,
-            "per_model_energy_joules": per_model_energy,
             "per_model_latency_ms": per_model_latency,
             "per_model_count": per_model_count,
         }
@@ -481,13 +435,12 @@ class StatefulRouter:
         """Get list of model IDs."""
         return list(self.models.keys())
 
-    def get_model_energy(
-        self, model_id: str, request: "Instance", method: str
-    ) -> tuple[Any, float]:
+    def call_model(self, model_id: str, request: "Instance", method: str) -> Any:
         """
-        Execute a request on a single model with energy measurement.
+        Execute a request on a specific model.
 
-        Use this when you need to measure energy for each model separately.
+        Use this when you need to call models directly from the router,
+        e.g., for dataset creation or comparison.
 
         Args:
             model_id: ID of the model to execute on
@@ -495,25 +448,7 @@ class StatefulRouter:
             method: Method name ("loglikelihood", "generate_until", etc.)
 
         Returns:
-            Tuple of (response, energy_joules)
+            The model's response
         """
-        import time
-
         model = self.models[model_id]
-
-        energy = 0.0
-
-        if self._energy_monitor:
-            self._energy_monitor.begin_window(f"single_{model_id}")
-
-        start_time = time.perf_counter()
-        response = getattr(model, method)([request])[0]
-        end_time = time.perf_counter()
-
-        if self._energy_monitor:
-            measurement = self._energy_monitor.end_window(f"single_{model_id}")
-            energy = sum(measurement.energy.values())
-
-        latency = (end_time - start_time) * 1000
-
-        return response, energy, latency
+        return getattr(model, method)([request])[0]

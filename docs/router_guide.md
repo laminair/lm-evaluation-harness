@@ -414,6 +414,8 @@ class OutcomeEvent:
     all_metrics: dict[str, dict]       # Model ID → metrics
     all_correct: dict[str, bool]       # Model ID → correctness
     routing_metadata: dict[str, Any]   # Routing decision metadata
+    latency_ms: dict[str, float]       # Model ID → latency in ms
+    energy_joules: dict[str, float]    # Model ID → energy in J (if monitored)
 ```
 
 ## Troubleshooting

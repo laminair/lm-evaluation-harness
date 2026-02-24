@@ -7,6 +7,7 @@ This module demonstrates two usage patterns:
    routing:
      routing_callback: examples.weighted_random_router:route
      outcome_callback: examples.weighted_random_router:update
+     finish_callback: examples.weighted_random_router:finish
      initial_state:
        weights:
          small_model: 0.3
@@ -169,6 +170,21 @@ class WeightedRandomRouter:
         record["weights_after"] = dict(self.weights)
         self.outcomes.append(record)
 
+    def finish(self, state: dict[str, Any], results: dict[str, Any]) -> None:
+        """
+        Called when the evaluation run finishes.
+
+        Args:
+            state: State dict (ignored for instance method; uses self)
+            results: Final evaluation results dictionary
+        """
+        stats = self.get_stats()
+        print(f"\n=== WeightedRandomRouter Final Stats ===")
+        print(f"Total decisions: {stats['total_decisions']}")
+        print(f"Correct decisions: {stats['correct_decisions']}")
+        print(f"Accuracy: {stats['accuracy']:.2%}")
+        print(f"Final weights: {stats['weights']}")
+
     def get_state(self) -> dict[str, Any]:
         """
         Get router state for checkpointing.
@@ -302,6 +318,23 @@ class WeightedRandomRouter:
         state["weights"] = router.weights
         state["outcomes"] = outcomes
 
+    @classmethod
+    def finish_classmethod(cls, state: dict[str, Any], results: dict[str, Any]) -> None:
+        """
+        Classmethod finish callback for YAML config usage.
+
+        Args:
+            state: Mutable state dictionary
+            results: Final evaluation results dictionary
+        """
+        router = cls.from_state(state)
+        stats = router.get_stats()
+        print(f"\n=== WeightedRandomRouter Final Stats ===")
+        print(f"Total decisions: {stats['total_decisions']}")
+        print(f"Correct decisions: {stats['correct_decisions']}")
+        print(f"Accuracy: {stats['accuracy']:.2%}")
+        print(f"Final weights: {stats['weights']}")
+
 
 def route(
     request: "Instance",
@@ -325,3 +358,13 @@ def update(event: OutcomeEvent, state: dict[str, Any]) -> None:
         outcome_callback: examples.weighted_random_router:update
     """
     WeightedRandomRouter.update_classmethod(event, state)
+
+
+def finish(state: dict[str, Any], results: dict[str, Any]) -> None:
+    """
+    Module-level finish callback wrapper for YAML config usage.
+
+    This is the entry point referenced in router_config.yaml:
+        finish_callback: examples.weighted_random_router:finish
+    """
+    WeightedRandomRouter.finish_classmethod(state, results)

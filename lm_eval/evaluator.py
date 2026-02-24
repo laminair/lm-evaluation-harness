@@ -418,8 +418,14 @@ def simple_evaluate(
         )
         results["git_hash"] = get_git_commit_hash()
         results["date"] = start_date
-        add_env_info(results)  # additional environment info to results
-        add_tokenizer_info(results, lm)  # additional info about tokenizer
+        add_env_info(results)
+        add_tokenizer_info(results, lm)
+
+        from lm_eval.models.router import RouterLM
+
+        if isinstance(lm, RouterLM):
+            lm.on_finish(results)
+
         return results
     else:
         return None

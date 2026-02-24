@@ -77,6 +77,18 @@ class OutcomeCallback(Protocol):
         ...
 
 
+class FinishCallback(Protocol):
+    def __call__(self, state: dict[str, Any], results: dict[str, Any]) -> None:
+        """
+        Called when the evaluation run finishes.
+
+        Args:
+            state: Mutable router state (can be used for checkpointing)
+            results: Final evaluation results dictionary
+        """
+        ...
+
+
 @dataclass
 class RouterState:
     state: dict[str, Any] = field(default_factory=dict)

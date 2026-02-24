@@ -358,6 +358,28 @@ class StatefulRouter:
 
         self.outcomes.append(outcome_record)
 
+    def finish(self, state: dict[str, Any], results: dict[str, Any]) -> None:
+        """
+        Called when the evaluation run finishes.
+
+        Args:
+            state: State dict (unused for instance methods)
+            results: Final evaluation results dictionary
+        """
+        stats = self.get_stats()
+        print(f"\n=== StatefulRouter Final Stats ===")
+        print(f"Total decisions: {stats['total_decisions']}")
+        print(f"Correct decisions: {stats['correct_decisions']}")
+        print(f"Accuracy: {stats['accuracy']:.2%}")
+        print(f"Total latency: {stats['total_latency_ms']:.2f}ms")
+        print(f"Avg latency: {stats['avg_latency_ms']:.2f}ms")
+        print(f"Per-model counts: {stats['per_model_count']}")
+        print(f"Per-model latency: {stats['per_model_latency_ms']}")
+
+        if self._step_count > 0:
+            final_optimizer_step = self._step_count // self._accum_steps
+            print(f"Classifier updates (gradient steps): {final_optimizer_step}")
+
     def get_state(self) -> dict[str, Any]:
         """
         Return state for checkpointing.

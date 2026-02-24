@@ -11,6 +11,7 @@ import yaml
 from lm_eval.api.model import LM
 from lm_eval.api.registry import get_model
 from lm_eval.api.router import (
+    FinishCallback,
     OutcomeCallback,
     OutcomeEvent,
     RoutingContext,
@@ -87,6 +88,7 @@ class RouterLM(LM):
         routing_config = self.config.routing
         self._routing_callback: RoutingCallback | None = None
         self._outcome_callback: OutcomeCallback | None = None
+        self._finish_callback: FinishCallback | None = None
         self._router_instance: Any = None
 
         routing_callback_path = routing_config.get("routing_callback")
@@ -96,6 +98,10 @@ class RouterLM(LM):
         outcome_callback_path = routing_config.get("outcome_callback")
         if outcome_callback_path:
             self._outcome_callback = load_callback(outcome_callback_path)
+
+        finish_callback_path = routing_config.get("finish_callback")
+        if finish_callback_path:
+            self._finish_callback = load_callback(finish_callback_path)
 
         self._state: dict[str, Any] = routing_config.get("initial_state", {})
         self._adaptive = routing_config.get("adaptive", False)
@@ -167,6 +173,7 @@ class RouterLM(LM):
         instance._models = dict(router.models)
         instance._routing_callback = router.route
         instance._outcome_callback = router.update
+        instance._finish_callback = getattr(router, "finish", None)
         instance._router_instance = router
 
         instance._state = {}
@@ -403,6 +410,14 @@ class RouterLM(LM):
         """
         if self._outcome_callback is not None:
             self._outcome_callback(event, self._state)
+
+    def on_finish(self, results: dict[str, Any]) -> None:
+        """
+        Called by evaluator when the evaluation run finishes.
+        Allows the router to perform cleanup or checkpointing.
+        """
+        if self._finish_callback is not None:
+            self._finish_callback(self._state, results)
 
     def get_pending_decision(
         self, task_name: str | None, doc_id: int | None, idx: int

@@ -24,6 +24,7 @@ routing:
 
   routing_callback: examples.weighted_random_router:route
   outcome_callback: examples.weighted_random_router:update
+  finish_callback: examples.weighted_random_router:finish
 
   initial_state:
     weights:

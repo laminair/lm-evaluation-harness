@@ -44,6 +44,12 @@ routing:
   # Used for online learning in adaptive mode
   outcome_callback: my_router.algorithm:update_from_outcome
   
+  # Callback function when evaluation finishes (optional)
+  # Format: "module.path:function_name"
+  # The function receives (state, results) when evaluation completes
+  # Useful for checkpointing, final stats, cleanup, etc.
+  finish_callback: my_router.algorithm:on_finish
+   
   # Initial state passed to callbacks (optional)
   initial_state:
     epsilon: 0.1

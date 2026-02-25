@@ -358,13 +358,21 @@ class StatefulRouter:
 
         self.outcomes.append(outcome_record)
 
-    def finish(self, state: dict[str, Any], results: dict[str, Any]) -> None:
+    def finish(
+        self,
+        state: dict[str, Any],
+        results: dict[str, Any],
+        per_model_results: dict[str, dict[str, dict[str, list[float]]]] | None = None,
+    ) -> None:
         """
         Called when the evaluation run finishes.
 
         Args:
             state: State dict (unused for instance methods)
             results: Final evaluation results dictionary
+            per_model_results: Per-task, per-model metrics computed during exhaustive
+                              evaluation. Structure: {task_name: {model_name: {metric: [values]}}}
+                              None if not in exhaustive mode.
         """
         stats = self.get_stats()
         print(f"\n=== StatefulRouter Final Stats ===")
@@ -379,6 +387,17 @@ class StatefulRouter:
         if self._step_count > 0:
             final_optimizer_step = self._step_count // self._accum_steps
             print(f"Classifier updates (gradient steps): {final_optimizer_step}")
+
+        if per_model_results:
+            print(f"\n=== Per-Model Results (Exhaustive Mode) ===")
+            for task_name, model_results in per_model_results.items():
+                print(f"\nTask: {task_name}")
+                for model_name, metrics in model_results.items():
+                    print(f"  {model_name}:")
+                    for metric_name, values in metrics.items():
+                        if values:
+                            avg = sum(values) / len(values)
+                            print(f"    {metric_name}: {avg:.4f} (n={len(values)})")
 
     def get_state(self) -> dict[str, Any]:
         """

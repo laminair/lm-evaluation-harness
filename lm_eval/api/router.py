@@ -78,13 +78,21 @@ class OutcomeCallback(Protocol):
 
 
 class FinishCallback(Protocol):
-    def __call__(self, state: dict[str, Any], results: dict[str, Any]) -> None:
+    def __call__(
+        self,
+        state: dict[str, Any],
+        results: dict[str, Any],
+        per_model_results: dict[str, dict[str, dict[str, float]]] | None = None,
+    ) -> None:
         """
         Called when the evaluation run finishes.
 
         Args:
             state: Mutable router state (can be used for checkpointing)
             results: Final evaluation results dictionary
+            per_model_results: Per-task, per-model metrics computed during exhaustive
+                               evaluation. Structure: {task_name: {model_name: {metric: value}}}
+                               None if not in exhaustive mode.
         """
         ...
 

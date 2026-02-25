@@ -31,6 +31,17 @@ routing:
   # When true, the router can learn from outcomes during the evaluation run
   adaptive: false
   
+  # Enable exhaustive mode - runs ALL models on EVERY request
+  # When true, computes metrics for each model separately
+  # Results are available in finish_callback via per_model_results
+  exhaustive: false
+  
+  # Store latency and energy metadata for each model call
+  # When true, stores latency_ms and energy_joules per model in per_model_results
+  # Requires zeus to be installed for energy metrics: pip install lm-eval[energy]
+  # Energy is None for API-based models (OpenAI, Anthropic, etc.)
+  store_metadata: false
+  
   # Callback function for routing decisions (optional)
   # Format: "module.path:function_name"
   # The function should accept (request, context, state) and return:

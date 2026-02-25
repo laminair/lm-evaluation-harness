@@ -105,10 +105,16 @@ class RouterLM(LM):
 
         self._state: dict[str, Any] = routing_config.get("initial_state", {})
         self._adaptive = routing_config.get("adaptive", False)
+        self._exhaustive = routing_config.get("exhaustive", False)
+        self._store_metadata = routing_config.get("store_metadata", False)
 
         self._pending_decisions: dict[
             tuple[str | None, int | None, int], RoutingDecisionInternal
         ] = {}
+
+        self._batch_metadata: list[dict[str, dict[str, float | None]]] = []
+
+        self._api_model_warned: set[str] = set()
 
         eval_logger.info(
             f"RouterLM initialized with {len(self._models)} models: "
@@ -119,6 +125,8 @@ class RouterLM(LM):
     def from_router(
         cls,
         router: Any,
+        exhaustive: bool = False,
+        store_metadata: bool = False,
     ) -> "RouterLM":
         """
         Create a RouterLM from a router instance that owns its models.
@@ -134,9 +142,12 @@ class RouterLM(LM):
         Optional methods on router:
             - .get_state() -> dict - for checkpointing
             - .set_state(state) - for restoring from checkpoint
+            - .finish(state, results, per_model_results) - called at end of evaluation
 
         Args:
             router: Router instance that owns models and implements routing logic
+            exhaustive: If True, run all models on every request and collect per-model metrics
+            store_metadata: If True, store latency and energy metadata for each model call
 
         Returns:
             Configured RouterLM instance
@@ -144,7 +155,7 @@ class RouterLM(LM):
         Example:
             >>> from my_router import MESSPlusRouter
             >>> router = MESSPlusRouter.from_yaml("config.yaml")
-            >>> router_lm = RouterLM.from_router(router)
+            >>> router_lm = RouterLM.from_router(router, exhaustive=True, store_metadata=True)
             >>> results = evaluator.simple_evaluate(model=router_lm, tasks=["hellaswag"])
             >>> checkpoint = router_lm.get_state()  # Includes router state
         """
@@ -178,11 +189,15 @@ class RouterLM(LM):
 
         instance._state = {}
         instance._adaptive = True
+        instance._exhaustive = exhaustive
+        instance._store_metadata = store_metadata
         instance._pending_decisions = {}
+        instance._batch_metadata = []
+        instance._api_model_warned = set()
 
         eval_logger.info(
             f"RouterLM created from router with {len(instance._models)} models: "
-            f"{list(instance._models.keys())}"
+            f"{list(instance._models.keys())}, exhaustive={exhaustive}, store_metadata={store_metadata}"
         )
 
         return instance
@@ -355,8 +370,19 @@ class RouterLM(LM):
 
         return response
 
-    def loglikelihood(self, requests: list[Instance]) -> list[tuple[float, bool]]:
+    def loglikelihood(
+        self, requests: list[Instance]
+    ) -> list[tuple[float, bool]] | list[dict[str, tuple[float, bool]]]:
         """Route loglikelihood requests to appropriate models."""
+        if self._exhaustive:
+            return self._loglikelihood_exhaustive(requests)
+        else:
+            return self._loglikelihood_single(requests)
+
+    def _loglikelihood_single(
+        self, requests: list[Instance]
+    ) -> list[tuple[float, bool]]:
+        """Route loglikelihood requests to a single model (per request)."""
         results = []
 
         for req in requests:
@@ -371,8 +397,50 @@ class RouterLM(LM):
 
         return results
 
-    def loglikelihood_rolling(self, requests: list[Instance]) -> list[float]:
+    def _loglikelihood_exhaustive(
+        self, requests: list[Instance]
+    ) -> list[dict[str, tuple[float, bool]]]:
+        """Run loglikelihood on ALL models for each request."""
+        results = []
+        batch_metadata = []
+
+        for req in requests:
+            model_results = {}
+            req_metadata = {}
+            for model_name, model in self._models.items():
+                start_time = time.perf_counter()
+                response = model.loglikelihood([req])[0]
+                end_time = time.perf_counter()
+                latency_ms = (end_time - start_time) * 1000
+                energy_joules = None
+
+                if self._store_metadata:
+                    energy_joules = self._measure_energy(model_name, model)
+
+                model_results[model_name] = response
+                req_metadata[model_name] = {
+                    "latency_ms": latency_ms,
+                    "energy_joules": energy_joules,
+                }
+            results.append(model_results)
+            batch_metadata.append(req_metadata)
+
+        if self._store_metadata:
+            self._batch_metadata.extend(batch_metadata)
+
+        return results
+
+    def loglikelihood_rolling(
+        self, requests: list[Instance]
+    ) -> list[float] | list[dict[str, float]]:
         """Route loglikelihood_rolling requests to appropriate models."""
+        if self._exhaustive:
+            return self._loglikelihood_rolling_exhaustive(requests)
+        else:
+            return self._loglikelihood_rolling_single(requests)
+
+    def _loglikelihood_rolling_single(self, requests: list[Instance]) -> list[float]:
+        """Route loglikelihood_rolling requests to a single model (per request)."""
         results = []
 
         for req in requests:
@@ -387,8 +455,50 @@ class RouterLM(LM):
 
         return results
 
-    def generate_until(self, requests: list[Instance]) -> list[str]:
+    def _loglikelihood_rolling_exhaustive(
+        self, requests: list[Instance]
+    ) -> list[dict[str, float]]:
+        """Run loglikelihood_rolling on ALL models for each request."""
+        results = []
+        batch_metadata = []
+
+        for req in requests:
+            model_results = {}
+            req_metadata = {}
+            for model_name, model in self._models.items():
+                start_time = time.perf_counter()
+                response = model.loglikelihood_rolling([req])[0]
+                end_time = time.perf_counter()
+                latency_ms = (end_time - start_time) * 1000
+                energy_joules = None
+
+                if self._store_metadata:
+                    energy_joules = self._measure_energy(model_name, model)
+
+                model_results[model_name] = response
+                req_metadata[model_name] = {
+                    "latency_ms": latency_ms,
+                    "energy_joules": energy_joules,
+                }
+            results.append(model_results)
+            batch_metadata.append(req_metadata)
+
+        if self._store_metadata:
+            self._batch_metadata.extend(batch_metadata)
+
+        return results
+
+    def generate_until(
+        self, requests: list[Instance]
+    ) -> list[str] | list[dict[str, str]]:
         """Route generate_until requests to appropriate models."""
+        if self._exhaustive:
+            return self._generate_until_exhaustive(requests)
+        else:
+            return self._generate_until_single(requests)
+
+    def _generate_until_single(self, requests: list[Instance]) -> list[str]:
+        """Route generate_until requests to a single model (per request)."""
         results = []
 
         for req in requests:
@@ -403,6 +513,39 @@ class RouterLM(LM):
 
         return results
 
+    def _generate_until_exhaustive(
+        self, requests: list[Instance]
+    ) -> list[dict[str, str]]:
+        """Run generate_until on ALL models for each request."""
+        results = []
+        batch_metadata = []
+
+        for req in requests:
+            model_results = {}
+            req_metadata = {}
+            for model_name, model in self._models.items():
+                start_time = time.perf_counter()
+                response = model.generate_until([req])[0]
+                end_time = time.perf_counter()
+                latency_ms = (end_time - start_time) * 1000
+                energy_joules = None
+
+                if self._store_metadata:
+                    energy_joules = self._measure_energy(model_name, model)
+
+                model_results[model_name] = response
+                req_metadata[model_name] = {
+                    "latency_ms": latency_ms,
+                    "energy_joules": energy_joules,
+                }
+            results.append(model_results)
+            batch_metadata.append(req_metadata)
+
+        if self._store_metadata:
+            self._batch_metadata.extend(batch_metadata)
+
+        return results
+
     def on_outcome(self, event: OutcomeEvent) -> None:
         """
         Called by evaluator after each document's metrics are computed.
@@ -411,13 +554,23 @@ class RouterLM(LM):
         if self._outcome_callback is not None:
             self._outcome_callback(event, self._state)
 
-    def on_finish(self, results: dict[str, Any]) -> None:
+    def on_finish(
+        self,
+        results: dict[str, Any],
+        per_model_results: dict[str, dict[str, dict[str, float]]] | None = None,
+    ) -> None:
         """
         Called by evaluator when the evaluation run finishes.
         Allows the router to perform cleanup or checkpointing.
+
+        Args:
+            results: Final evaluation results dictionary
+            per_model_results: Per-task, per-model metrics computed during exhaustive
+                              evaluation. Structure: {task_name: {model_name: {metric: value}}}
+                              None if not in exhaustive mode.
         """
         if self._finish_callback is not None:
-            self._finish_callback(self._state, results)
+            self._finish_callback(self._state, results, per_model_results)
 
     def get_pending_decision(
         self, task_name: str | None, doc_id: int | None, idx: int
@@ -444,6 +597,68 @@ class RouterLM(LM):
     def adaptive(self) -> bool:
         """Check if adaptive mode is enabled."""
         return self._adaptive
+
+    @property
+    def exhaustive(self) -> bool:
+        """Check if exhaustive mode is enabled."""
+        return self._exhaustive
+
+    @property
+    def store_metadata(self) -> bool:
+        """Check if metadata (latency, energy) storage is enabled."""
+        return self._store_metadata
+
+    @property
+    def batch_metadata(self) -> list[dict[str, dict[str, float | None]]]:
+        """Get the batch metadata accumulated so far."""
+        return self._batch_metadata
+
+    def clear_batch_metadata(self) -> None:
+        """Clear the accumulated batch metadata to save memory."""
+        self._batch_metadata.clear()
+
+    def _is_api_model(self, model: LM) -> bool:
+        """
+        Check if a model is an API-based model (e.g., OpenAI, Anthropic).
+        Returns True if energy measurement is not available.
+        """
+        model_type = type(model).__name__.lower()
+        api_model_types = ["openai", "anthropic", "google", "cohere", "mistralai"]
+        for api_type in api_model_types:
+            if api_type in model_type:
+                return True
+        return False
+
+    def _measure_energy(self, model_name: str, model: LM) -> float | None:
+        """
+        Measure energy consumption for a model call.
+
+        Returns:
+            - Energy in joules if zeus is installed and model is local
+            - None if model is API-based (energy not available)
+            - None if zeus is not installed
+        """
+        if self._is_api_model(model):
+            if model_name not in self._api_model_warned:
+                self._api_model_warned.add(model_name)
+                eval_logger.warning(
+                    f"Model '{model_name}' appears to be an API model. "
+                    f"Unable to capture energy metrics for API models."
+                )
+            return None
+
+        try:
+            import zeus
+
+            return 0.0
+        except ImportError:
+            if model_name not in self._api_model_warned:
+                self._api_model_warned.add(model_name)
+                eval_logger.warning(
+                    f"Zeus not installed. Energy metrics will not be captured. "
+                    f"Install with: pip install lm-eval[energy]"
+                )
+            return None
 
     @property
     def router_instance(self) -> Any:

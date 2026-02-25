@@ -188,7 +188,7 @@ class RouterLM(LM):
         instance._router_instance = router
 
         instance._state = {}
-        instance._adaptive = True
+        instance._adaptive = not exhaustive
         instance._exhaustive = exhaustive
         instance._store_metadata = store_metadata
         instance._pending_decisions = {}
@@ -400,33 +400,47 @@ class RouterLM(LM):
     def _loglikelihood_exhaustive(
         self, requests: list[Instance]
     ) -> list[dict[str, tuple[float, bool]]]:
-        """Run loglikelihood on ALL models for each request."""
-        results = []
-        batch_metadata = []
+        """Run loglikelihood on ALL models for each request.
 
-        for req in requests:
-            model_results = {}
-            req_metadata = {}
-            for model_name, model in self._models.items():
-                start_time = time.perf_counter()
-                response = model.loglikelihood([req])[0]
-                end_time = time.perf_counter()
-                latency_ms = (end_time - start_time) * 1000
-                energy_joules = None
+        Batches requests per model for better GPU utilization.
+        """
+        num_requests = len(requests)
 
-                if self._store_metadata:
-                    energy_joules = self._measure_energy(model_name, model)
+        model_results_by_model: dict[str, list[tuple[float, bool]]] = {}
+        model_latencies: dict[str, list[float]] = {}
 
-                model_results[model_name] = response
-                req_metadata[model_name] = {
-                    "latency_ms": latency_ms,
-                    "energy_joules": energy_joules,
-                }
-            results.append(model_results)
-            batch_metadata.append(req_metadata)
+        for model_name, model in self._models.items():
+            start_time = time.perf_counter()
+            model_results = model.loglikelihood(requests)
+            end_time = time.perf_counter()
+
+            model_results_by_model[model_name] = model_results
+
+            if self._store_metadata:
+                total_latency_ms = (end_time - start_time) * 1000
+                per_request_latency = total_latency_ms / num_requests
+                model_latencies[model_name] = [per_request_latency] * num_requests
+
+        results: list[dict[str, tuple[float, bool]]] = [{} for _ in range(num_requests)]
 
         if self._store_metadata:
+            batch_metadata = []
+            for i in range(num_requests):
+                req_metadata = {}
+                for model_name in self._models:
+                    energy_joules = self._measure_energy(
+                        model_name, self._models[model_name]
+                    )
+                    req_metadata[model_name] = {
+                        "latency_ms": model_latencies[model_name][i],
+                        "energy_joules": energy_joules,
+                    }
+                batch_metadata.append(req_metadata)
             self._batch_metadata.extend(batch_metadata)
+
+        for model_name, model_results in model_results_by_model.items():
+            for i, result in enumerate(model_results):
+                results[i][model_name] = result
 
         return results
 
@@ -458,33 +472,47 @@ class RouterLM(LM):
     def _loglikelihood_rolling_exhaustive(
         self, requests: list[Instance]
     ) -> list[dict[str, float]]:
-        """Run loglikelihood_rolling on ALL models for each request."""
-        results = []
-        batch_metadata = []
+        """Run loglikelihood_rolling on ALL models for each request.
 
-        for req in requests:
-            model_results = {}
-            req_metadata = {}
-            for model_name, model in self._models.items():
-                start_time = time.perf_counter()
-                response = model.loglikelihood_rolling([req])[0]
-                end_time = time.perf_counter()
-                latency_ms = (end_time - start_time) * 1000
-                energy_joules = None
+        Batches requests per model for better GPU utilization.
+        """
+        num_requests = len(requests)
 
-                if self._store_metadata:
-                    energy_joules = self._measure_energy(model_name, model)
+        model_results_by_model: dict[str, list[float]] = {}
+        model_latencies: dict[str, list[float]] = {}
 
-                model_results[model_name] = response
-                req_metadata[model_name] = {
-                    "latency_ms": latency_ms,
-                    "energy_joules": energy_joules,
-                }
-            results.append(model_results)
-            batch_metadata.append(req_metadata)
+        for model_name, model in self._models.items():
+            start_time = time.perf_counter()
+            model_results = model.loglikelihood_rolling(requests)
+            end_time = time.perf_counter()
+
+            model_results_by_model[model_name] = model_results
+
+            if self._store_metadata:
+                total_latency_ms = (end_time - start_time) * 1000
+                per_request_latency = total_latency_ms / num_requests
+                model_latencies[model_name] = [per_request_latency] * num_requests
+
+        results: list[dict[str, float]] = [{} for _ in range(num_requests)]
 
         if self._store_metadata:
+            batch_metadata = []
+            for i in range(num_requests):
+                req_metadata = {}
+                for model_name in self._models:
+                    energy_joules = self._measure_energy(
+                        model_name, self._models[model_name]
+                    )
+                    req_metadata[model_name] = {
+                        "latency_ms": model_latencies[model_name][i],
+                        "energy_joules": energy_joules,
+                    }
+                batch_metadata.append(req_metadata)
             self._batch_metadata.extend(batch_metadata)
+
+        for model_name, model_results in model_results_by_model.items():
+            for i, result in enumerate(model_results):
+                results[i][model_name] = result
 
         return results
 
@@ -516,33 +544,47 @@ class RouterLM(LM):
     def _generate_until_exhaustive(
         self, requests: list[Instance]
     ) -> list[dict[str, str]]:
-        """Run generate_until on ALL models for each request."""
-        results = []
-        batch_metadata = []
+        """Run generate_until on ALL models for each request.
 
-        for req in requests:
-            model_results = {}
-            req_metadata = {}
-            for model_name, model in self._models.items():
-                start_time = time.perf_counter()
-                response = model.generate_until([req])[0]
-                end_time = time.perf_counter()
-                latency_ms = (end_time - start_time) * 1000
-                energy_joules = None
+        Batches requests per model for better GPU utilization.
+        """
+        num_requests = len(requests)
 
-                if self._store_metadata:
-                    energy_joules = self._measure_energy(model_name, model)
+        model_results_by_model: dict[str, list[str]] = {}
+        model_latencies: dict[str, list[float]] = {}
 
-                model_results[model_name] = response
-                req_metadata[model_name] = {
-                    "latency_ms": latency_ms,
-                    "energy_joules": energy_joules,
-                }
-            results.append(model_results)
-            batch_metadata.append(req_metadata)
+        for model_name, model in self._models.items():
+            start_time = time.perf_counter()
+            model_results = model.generate_until(requests)
+            end_time = time.perf_counter()
+
+            model_results_by_model[model_name] = model_results
+
+            if self._store_metadata:
+                total_latency_ms = (end_time - start_time) * 1000
+                per_request_latency = total_latency_ms / num_requests
+                model_latencies[model_name] = [per_request_latency] * num_requests
+
+        results: list[dict[str, str]] = [{} for _ in range(num_requests)]
 
         if self._store_metadata:
+            batch_metadata = []
+            for i in range(num_requests):
+                req_metadata = {}
+                for model_name in self._models:
+                    energy_joules = self._measure_energy(
+                        model_name, self._models[model_name]
+                    )
+                    req_metadata[model_name] = {
+                        "latency_ms": model_latencies[model_name][i],
+                        "energy_joules": energy_joules,
+                    }
+                batch_metadata.append(req_metadata)
             self._batch_metadata.extend(batch_metadata)
+
+        for model_name, model_results in model_results_by_model.items():
+            for i, result in enumerate(model_results):
+                results[i][model_name] = result
 
         return results
 

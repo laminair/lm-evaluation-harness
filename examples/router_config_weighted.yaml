@@ -21,10 +21,6 @@ routing:
   shadow_mode: all
 
   adaptive: true
-  
-  # Store latency and energy metadata for each model call
-  # Requires zeus to be installed for energy metrics: pip install lm-eval[energy]
-  store_metadata: false
 
   routing_callback: examples.weighted_random_router:route
   outcome_callback: examples.weighted_random_router:update

@@ -16,6 +16,7 @@ class RoutingContext:
     arguments: tuple
     idx: int = 0
     batch_context: dict[str, Any] = field(default_factory=dict)
+    process_results: Callable[[dict[str, Any], Any], dict[str, float]] | None = None
 
 
 @dataclass
@@ -82,7 +83,6 @@ class FinishCallback(Protocol):
         self,
         state: dict[str, Any],
         results: dict[str, Any],
-        per_model_results: dict[str, dict[str, dict[str, float]]] | None = None,
     ) -> None:
         """
         Called when the evaluation run finishes.
@@ -90,9 +90,6 @@ class FinishCallback(Protocol):
         Args:
             state: Mutable router state (can be used for checkpointing)
             results: Final evaluation results dictionary
-            per_model_results: Per-task, per-model metrics computed during exhaustive
-                               evaluation. Structure: {task_name: {model_name: {metric: value}}}
-                               None if not in exhaustive mode.
         """
         ...
 

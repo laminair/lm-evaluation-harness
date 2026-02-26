@@ -424,8 +424,7 @@ def simple_evaluate(
         from lm_eval.models.router import RouterLM
 
         if isinstance(lm, RouterLM):
-            per_model_results = getattr(lm, "_per_model_metrics", None)
-            lm.on_finish(results, per_model_results)
+            lm.on_finish(results)
 
         return results
     else:
@@ -455,6 +454,8 @@ def _evaluate_adaptive(
     for (task_name, acc), limit in zip(eval_results_acc.items(), limits, strict=True):
         task = acc["task"]
         task.apply_filters()
+
+        router_lm.set_task(task)
 
         instances_by_doc_id = defaultdict(list)
         for instance in task.instances:
@@ -538,126 +539,6 @@ def _evaluate_adaptive(
 
             for metric, value in primary_metrics.items():
                 acc["raw_metrics"][(metric, filter_key)].append(value)
-
-
-def _evaluate_exhaustive(
-    lm,
-    eval_tasks: dict,
-    eval_results_acc: dict,
-    limits: list,
-    samples: dict[str, list[int]] | None,
-    log_samples: bool,
-) -> None:
-    """
-    Exhaustive evaluation mode for RouterLM.
-
-    Runs ALL models on EVERY request and computes metrics for each model separately.
-    Results are stored in per_model_metrics for access via finish_callback.
-    """
-    from tqdm import tqdm
-
-    router_lm = lm
-    RANK = lm.rank
-    WORLD_SIZE = lm.world_size
-
-    per_model_metrics: dict[str, dict[str, dict[str, list[float]]]] = {}
-    model_names = list(router_lm.models.keys())
-
-    for (task_name, acc), limit in zip(eval_results_acc.items(), limits, strict=True):
-        task = acc["task"]
-        task.apply_filters()
-
-        per_model_metrics[task_name] = {}
-        for model_name in model_names:
-            per_model_metrics[task_name][model_name] = {}
-
-        instances_by_doc_id = defaultdict(list)
-        for instance in task.instances:
-            instances_by_doc_id[instance.doc_id].append(instance)
-
-        for instances in instances_by_doc_id.values():
-            instances.sort(key=lambda x: x.idx)
-
-        for filter_key in task.instances[0].filtered_resps:
-            indices = samples.get(task_name, None) if samples is not None else None
-            doc_iterator = task.doc_iterator(
-                rank=RANK,
-                limit=limit,
-                world_size=WORLD_SIZE,
-                samples=indices,
-            )
-
-            for doc_id, doc in doc_iterator:
-                doc_id_true = indices[doc_id] if indices else doc_id
-                requests = instances_by_doc_id[doc_id]
-
-                first_resp = requests[0].filtered_resps.get(filter_key)
-                if first_resp is None:
-                    continue
-
-                if not isinstance(first_resp, dict):
-                    continue
-
-                for model_name in model_names:
-                    model_resps = []
-                    for req in requests:
-                        resp = req.filtered_resps.get(filter_key)
-                        if resp is not None and isinstance(resp, dict):
-                            model_resps.append(resp.get(model_name))
-                        else:
-                            model_resps.append(None)
-
-                    metrics = task.process_results(doc, model_resps)
-
-                    for metric, value in metrics.items():
-                        if metric not in per_model_metrics[task_name][model_name]:
-                            per_model_metrics[task_name][model_name][metric] = []
-                        per_model_metrics[task_name][model_name][metric].append(value)
-
-                if log_samples:
-                    target = task.doc_to_target(doc)
-                    example = {
-                        "doc_id": doc_id_true,
-                        "doc": doc,
-                        "target": target,
-                        "arguments": [req.args for req in requests],
-                        "resps": [req.resps for req in requests],
-                        "filtered_resps": [
-                            req.filtered_resps[filter_key] for req in requests
-                        ],
-                        "filter": filter_key,
-                        "metrics": list(metrics.keys()),
-                        "doc_hash": hash_string(
-                            json.dumps(
-                                requests[0].doc,
-                                indent=2,
-                                default=handle_non_serializable,
-                                ensure_ascii=False,
-                            )
-                        ),
-                        "prompt_hash": hash_string(requests[0].arguments[0]),
-                        "target_hash": hash_string(str(target)),
-                    }
-                    example.update(metrics)
-                    acc["logged_samples"].append(example)
-
-    if router_lm.store_metadata and router_lm.batch_metadata:
-        batch_metadata = router_lm.batch_metadata
-        for model_name in model_names:
-            latency_list = []
-            energy_list = []
-            for req_metadata in batch_metadata:
-                if model_name in req_metadata:
-                    latency_list.append(req_metadata[model_name].get("latency_ms"))
-                    energy_list.append(req_metadata[model_name].get("energy_joules"))
-            if latency_list:
-                per_model_metrics["_metadata"] = per_model_metrics.get("_metadata", {})
-                per_model_metrics["_metadata"][model_name] = {
-                    "latency_ms": latency_list,
-                    "energy_joules": energy_list,
-                }
-
-    router_lm._per_model_metrics = per_model_metrics
 
 
 @positional_deprecated
@@ -848,22 +729,11 @@ def evaluate(
     from lm_eval.models.router import RouterLM
 
     is_router_adaptive = isinstance(lm, RouterLM) and lm.adaptive
-    is_router_exhaustive = isinstance(lm, RouterLM) and lm.exhaustive
 
     ### Postprocess outputs ###
     if is_router_adaptive:
         eval_logger.info("Using adaptive evaluation mode for RouterLM")
         _evaluate_adaptive(
-            lm=lm,
-            eval_tasks=eval_tasks,
-            eval_results_acc=eval_results_acc,
-            limits=limits,
-            samples=samples,
-            log_samples=log_samples,
-        )
-    elif is_router_exhaustive:
-        eval_logger.info("Using exhaustive evaluation mode for RouterLM")
-        _evaluate_exhaustive(
             lm=lm,
             eval_tasks=eval_tasks,
             eval_results_acc=eval_results_acc,
@@ -877,6 +747,9 @@ def evaluate(
         ):
             task = acc["task"]
             task.apply_filters()
+
+            if isinstance(lm, RouterLM):
+                lm.set_task(task)
 
             ### Collect values of metrics on all datapoints ###
             # # unpack results and sort back in order and return control to Task

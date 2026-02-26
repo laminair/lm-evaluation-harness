@@ -298,7 +298,7 @@ class RouterLM(LM):
         """Make a routing decision for a single request."""
         if self._current_task is not None:
             process_results_fn = lambda doc, resp: self._current_task.process_results(
-                doc, [resp]
+                doc, resp
             )
         else:
             process_results_fn = None

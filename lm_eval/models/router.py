@@ -298,7 +298,7 @@ class RouterLM(LM):
         """Make a routing decision for a single request."""
         if self._current_task is not None:
             process_results_fn = lambda doc, resp: self._current_task.process_results(
-                doc, resp
+                doc, [resp]
             )
         else:
             process_results_fn = None
@@ -375,18 +375,32 @@ class RouterLM(LM):
     def _loglikelihood_single(
         self, requests: list[Instance]
     ) -> list[tuple[float, bool]]:
-        """Route loglikelihood requests to a single model (per request)."""
-        results = []
+        """Route loglikelihood requests, grouping by doc_id for multiple choice."""
+        from collections import defaultdict
 
-        for req in requests:
-            decision = self._make_routing_decision(req)
+        doc_id_to_indices = defaultdict(list)
+        for idx, req in enumerate(requests):
+            doc_id_to_indices[req.doc_id].append(idx)
+
+        results = [None] * len(requests)
+
+        for doc_id, indices in doc_id_to_indices.items():
+            group_requests = [requests[i] for i in indices]
+            first_req = group_requests[0]
+            decision = self._make_routing_decision(first_req)
 
             if self._adaptive:
-                key = self._make_decision_key(req)
+                key = self._make_decision_key(first_req)
                 self._pending_decisions[key] = decision
 
-            result = self._execute_on_model(req, decision, "loglikelihood")
-            results.append(result)
+            model = self._models[decision.model]
+            group_results = model.loglikelihood(group_requests)
+
+            for idx, result in zip(indices, group_results, strict=True):
+                results[idx] = result
+                req = requests[idx]
+                decision.response = result
+                decision.latency_ms = 0.0
 
         return results
 
@@ -395,18 +409,29 @@ class RouterLM(LM):
         return self._loglikelihood_rolling_single(requests)
 
     def _loglikelihood_rolling_single(self, requests: list[Instance]) -> list[float]:
-        """Route loglikelihood_rolling requests to a single model (per request)."""
-        results = []
+        """Route loglikelihood_rolling requests, grouping by doc_id."""
+        from collections import defaultdict
 
-        for req in requests:
-            decision = self._make_routing_decision(req)
+        doc_id_to_indices = defaultdict(list)
+        for idx, req in enumerate(requests):
+            doc_id_to_indices[req.doc_id].append(idx)
+
+        results = [None] * len(requests)
+
+        for doc_id, indices in doc_id_to_indices.items():
+            group_requests = [requests[i] for i in indices]
+            first_req = group_requests[0]
+            decision = self._make_routing_decision(first_req)
 
             if self._adaptive:
-                key = self._make_decision_key(req)
+                key = self._make_decision_key(first_req)
                 self._pending_decisions[key] = decision
 
-            result = self._execute_on_model(req, decision, "loglikelihood_rolling")
-            results.append(result)
+            model = self._models[decision.model]
+            group_results = model.loglikelihood_rolling(group_requests)
+
+            for idx, result in zip(indices, group_results, strict=True):
+                results[idx] = result
 
         return results
 
@@ -415,18 +440,29 @@ class RouterLM(LM):
         return self._generate_until_single(requests)
 
     def _generate_until_single(self, requests: list[Instance]) -> list[str]:
-        """Route generate_until requests to a single model (per request)."""
-        results = []
+        """Route generate_until requests, grouping by doc_id."""
+        from collections import defaultdict
 
-        for req in requests:
-            decision = self._make_routing_decision(req)
+        doc_id_to_indices = defaultdict(list)
+        for idx, req in enumerate(requests):
+            doc_id_to_indices[req.doc_id].append(idx)
+
+        results = [None] * len(requests)
+
+        for doc_id, indices in doc_id_to_indices.items():
+            group_requests = [requests[i] for i in indices]
+            first_req = group_requests[0]
+            decision = self._make_routing_decision(first_req)
 
             if self._adaptive:
-                key = self._make_decision_key(req)
+                key = self._make_decision_key(first_req)
                 self._pending_decisions[key] = decision
 
-            result = self._execute_on_model(req, decision, "generate_until")
-            results.append(result)
+            model = self._models[decision.model]
+            group_results = model.generate_until(group_requests)
+
+            for idx, result in zip(indices, group_results, strict=True):
+                results[idx] = result
 
         return results
 

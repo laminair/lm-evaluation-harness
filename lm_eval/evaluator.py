@@ -677,6 +677,13 @@ def evaluate(
         )
         if write_out:
             print_writeout(task)
+
+        # Set task on router before processing requests
+        from lm_eval.models.router import RouterLM
+
+        if isinstance(lm, RouterLM):
+            lm.set_task(task)
+
         # aggregate Instances by LM method requested to get output.
         for instance in task.instances:
             reqtype = instance.request_type

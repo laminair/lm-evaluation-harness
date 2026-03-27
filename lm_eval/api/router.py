@@ -8,6 +8,31 @@ if TYPE_CHECKING:
 
 
 @dataclass
+class TokenUsage:
+    """Token usage tracking for API models."""
+
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    thinking_tokens: int = 0
+    total_tokens: int = 0
+
+    def __add__(self, other: "TokenUsage") -> "TokenUsage":
+        """Add token usage from another request."""
+        return TokenUsage(
+            prompt_tokens=self.prompt_tokens + other.prompt_tokens,
+            completion_tokens=self.completion_tokens + other.completion_tokens,
+            thinking_tokens=self.thinking_tokens + other.thinking_tokens,
+            total_tokens=self.total_tokens + other.total_tokens,
+        )
+
+    def __radd__(self, other: "TokenUsage") -> "TokenUsage":
+        """Right add for sum() operations."""
+        if other == 0:
+            return self
+        return self.__add__(other)
+
+
+@dataclass
 class RoutingContext:
     request_type: str
     task_name: str | None
@@ -42,6 +67,7 @@ class OutcomeEvent:
 
     latency_ms: float = 0.0
     energy_joules: float = 0.0
+    token_usage: TokenUsage | None = None
 
 
 class RoutingCallback(Protocol):

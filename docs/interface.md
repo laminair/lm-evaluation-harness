@@ -130,6 +130,96 @@ lm-eval run --config my_config.yaml --tasks mmlu
 | `--wandb_args` | | Weights & Biases arguments as `key=val`. E.g., `project=my-project name=run-1`. |
 | `--wandb_config_args` | | Additional W&B config arguments. |
 | `--hf_hub_log_args` | | HuggingFace Hub logging arguments. See [HF Hub Logging](#huggingface-hub-logging). |
+| `--track_energy` | | Track energy consumption per request using Zeus. Requires `pip install lm_eval[energy]` or `pip install zeus-monitor`. See [Energy Tracking](#energy-tracking). |
+
+### Energy Tracking
+
+The `--track_energy` flag enables per-request energy measurement for GPU inference using [Zeus](https://ml.energy/zeus/). Energy consumption is recorded for each sample and included in the output when `--log_samples` is enabled.
+
+**Requirements:**
+
+```bash
+# Install with energy tracking support
+pip install "lm_eval[energy]"
+
+# Or install zeus directly
+pip install zeus-monitor
+```
+
+**Usage:**
+
+```bash
+# Enable energy tracking with vLLM
+lm-eval run --model vllm \
+    --model_args pretrained=Qwen/Qwen2.5-1.5B-Instruct,track_energy=true \
+    --tasks hellaswag \
+    --log_samples \
+    --track_energy \
+    -o results/
+
+# Alternative: pass track_energy in model_args (equivalent to --track_energy)
+lm-eval run --model vllm \
+    --model_args pretrained=Qwen/Qwen2.5-1.5B-Instruct,track_energy=true \
+    --tasks hellaswag \
+    --log_samples \
+    -o results/
+```
+
+**Model Arguments:**
+
+| Argument | Type | Default | Description |
+|----------|------|---------|-------------|
+| `track_energy` | bool | `false` | Enable energy tracking. Also set via `--track_energy` CLI flag. |
+| `energy_monitor_gpu_indices` | list[int] | `None` | GPU indices to monitor. If None, all GPUs are used. |
+| `approx_instant_energy` | bool | `true` | Approximate energy for short measurement windows. Helps avoid zero-energy readings for fast batches. |
+
+**Output:**
+
+When energy tracking is enabled or using API models, each sample in the JSONL output includes performance metrics:
+
+```json
+{
+  "doc_id": 0,
+  "doc": {...},
+  "resps": [...],
+  "energy_joules": 15.23,
+  "latency_ms": 123.4,
+  "throughput": 8.1,
+  "token_usage": {
+    "prompt_tokens": 128,
+    "completion_tokens": 32,
+    "thinking_tokens": 0,
+    "total_tokens": 160
+  },
+  ...
+}
+```
+
+**Metrics:**
+
+| Metric | Description | Available For |
+|--------|-------------|---------------|
+| `energy_joules` | Energy consumption in Joules | vLLM with Zeus |
+| `latency_ms` | Request latency in milliseconds | vLLM, API models |
+| `throughput` | Requests per second (1000 / latency_ms) | vLLM, API models |
+| `token_usage.prompt_tokens` | Number of input/prompt tokens | vLLM, API models |
+| `token_usage.completion_tokens` | Number of output/generated tokens | vLLM, API models |
+| `token_usage.thinking_tokens` | Reasoning tokens (o1/o3 models) | API models (OpenAI) |
+| `token_usage.total_tokens` | Total tokens (prompt + completion) | vLLM, API models |
+
+**Supported Models:**
+
+Energy, latency, and token tracking is currently supported for:
+- `vllm` - Energy via Zeus, latency, and token usage
+- API models (OpenAI-compatible) - Latency and token usage
+
+**Notes:**
+
+- Energy tracking requires CUDA GPUs and the `zeus-monitor` package
+- For fast batches, `approx_instant_energy` (enabled by default) uses an approximation algorithm to estimate energy when the measurement window is shorter than the GPU's energy counter update period
+- Latency and token usage are tracked automatically (no special flags needed) for vLLM and API models
+- For batched requests, metrics are divided evenly across batch members for per-request attribution
+- `thinking_tokens` is only available for API models that support extended reasoning (e.g., OpenAI o1/o3)
 
 ### Advanced Options
 

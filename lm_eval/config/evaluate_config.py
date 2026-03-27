@@ -172,6 +172,14 @@ class EvaluatorConfig:
         default_factory=dict, metadata={"help": "Arguments for HF Hub logging"}
     )
 
+    # Energy tracking
+    track_energy: bool = field(
+        default=False,
+        metadata={
+            "help": "Track energy consumption per request using Zeus (requires zeus package)"
+        },
+    )
+
     # Reproducibility
     seed: list = field(
         default_factory=lambda: [0, 1234, 1234, 1234],

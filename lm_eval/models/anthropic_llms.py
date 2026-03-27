@@ -380,3 +380,63 @@ class AnthropicChat(LocalCompletionsAPI):
         raise NotImplementedError(
             "Anthropic Chat Completions API does not support the return of loglikelihood"
         )
+
+    def _extract_token_usage(self, outputs: Union[Dict, List[Dict]]) -> TokenUsage:
+        """Extract token usage from Anthropic API response.
+
+        Handles Anthropic-specific format:
+        - usage.input_tokens, usage.output_tokens (not prompt/completion_tokens)
+        - thinking blocks in content array with type: thinking
+        """
+        from lm_eval.api.router import TokenUsage
+
+        total_usage = TokenUsage()
+
+        if not isinstance(outputs, list):
+            outputs = [outputs]
+
+        for out in outputs:
+            usage = out.get("usage", {})
+            input_tokens = usage.get("input_tokens", 0)
+            output_tokens = usage.get("output_tokens", 0)
+
+            # Estimate thinking tokens from thinking blocks in content
+            thinking_tokens = 0
+            for content_block in out.get("content", []):
+                if (
+                    isinstance(content_block, dict)
+                    and content_block.get("type") == "thinking"
+                ):
+                    thinking_text = content_block.get(
+                        "thinking", ""
+                    ) or content_block.get("text", "")
+                    thinking_tokens += self._estimate_thinking_tokens(thinking_text)
+
+            # Anthropic's input_tokens includes prompt + thinking tokens
+            # We need to separate them for accurate tracking
+            total_usage.prompt_tokens += input_tokens
+            total_usage.completion_tokens += output_tokens
+            total_usage.thinking_tokens += thinking_tokens
+            # Anthropic doesn't provide total_tokens, compute it
+            total_usage.total_tokens += input_tokens + output_tokens
+
+        return total_usage
+
+    def _estimate_thinking_tokens(self, thinking_content: str) -> int:
+        """Estimate token count in thinking content for Anthropic."""
+        if not thinking_content:
+            return 0
+
+        try:
+            import tiktoken
+
+            enc = tiktoken.get_encoding("cl100k_base")
+            return len(enc.encode(thinking_content))
+        except ImportError:
+            import warnings
+
+            warnings.warn(
+                "tiktoken not installed, estimating thinking tokens as len/4. "
+                "Install tiktoken for accurate counting: pip install tiktoken"
+            )
+            return max(1, len(thinking_content) // 4)

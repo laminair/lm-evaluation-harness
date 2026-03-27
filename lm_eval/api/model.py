@@ -204,6 +204,22 @@ class LM(abc.ABC):
         """Synchronization barrier. Default: no-op."""
         return
 
+    def get_accumulated_metrics(self) -> dict:
+        """Return accumulated metrics like energy and token usage.
+
+        Returns a dict with keys:
+        - energy_joules: float (total energy consumed, 0 if not tracking)
+        - token_usage: TokenUsage or None (for API models)
+        - per_request_energy: dict (for vLLM, maps request key to energy)
+
+        Override in subclasses to provide actual values.
+        """
+        return {
+            "energy_joules": 0.0,
+            "token_usage": None,
+            "per_request_energy": {},
+        }
+
     @property
     def tokenizer_name(self) -> str:
         """Name of the tokenizer or chat template, used to fingerprint request caches.

@@ -439,6 +439,30 @@ vLLM occasionally differs in output from Huggingface. We treat Huggingface as th
 > [!Tip]
 > Passing `max_model_len=4096` or some other reasonable default to vLLM through model args may cause speedups or prevent out-of-memory errors when trying to use auto batch size, such as for Mistral-7B-v0.1 which defaults to a maximum length of 32k.
 
+#### Energy Tracking with vLLM
+
+To track GPU energy consumption per request, use the `--track_energy` flag with vLLM. This requires the `zeus` package:
+
+```bash
+pip install "lm_eval[energy]"  # or: pip install zeus-monitor
+
+lm_eval --model vllm \
+    --model_args pretrained=Qwen/Qwen2.5-1.5B-Instruct,track_energy=true \
+    --tasks hellaswag \
+    --log_samples \
+    --track_energy \
+    -o results/
+```
+
+When energy tracking is enabled or when using API models, per-request metrics are included in each sample's output:
+
+- `energy_joules`: Energy consumption in Joules (vLLM with Zeus only)
+- `latency_ms`: Request latency in milliseconds
+- `throughput`: Requests per second
+- `token_usage`: Input/output token counts with `prompt_tokens`, `completion_tokens`, `thinking_tokens`, and `total_tokens`
+
+See [CLI Reference](./docs/interface.md#energy-tracking) for details.
+
 ### Tensor + Data Parallel and Fast Offline Batching Inference with `SGLang`
 
 We support SGLang for efficient offline batch inference. Its **[Fast Backend Runtime](https://docs.sglang.ai/index.html)** delivers high performance through optimized memory management and parallel processing techniques. Key features include tensor parallelism, continuous batching, and support for various quantization methods (FP8/INT4/AWQ/GPTQ).
@@ -809,6 +833,7 @@ These extras install dependencies required for specific evaluation tasks:
 | unitxt        | Unitxt tasks                   |
 | wandb         | Weights & Biases logging       |
 | zeno          | Zeno result visualization      |
+| energy        | Energy tracking with Zeus     |
 
 ## Cite as
 

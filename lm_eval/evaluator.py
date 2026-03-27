@@ -421,6 +421,18 @@ def simple_evaluate(
         add_env_info(results)
         add_tokenizer_info(results, lm)
 
+        # add accumulated metrics (energy and token usage) if available
+        if hasattr(lm, "get_accumulated_metrics"):
+            acc_metrics = lm.get_accumulated_metrics()
+            if acc_metrics.get("energy_joules", 0) > 0:
+                results["config"]["total_energy_joules"] = acc_metrics["energy_joules"]
+            if acc_metrics.get("token_usage") is not None:
+                tu = acc_metrics["token_usage"]
+                results["config"]["total_prompt_tokens"] = tu.prompt_tokens
+                results["config"]["total_completion_tokens"] = tu.completion_tokens
+                results["config"]["total_thinking_tokens"] = tu.thinking_tokens
+                results["config"]["total_tokens"] = tu.total_tokens
+
         from lm_eval.models.router import RouterLM
 
         if isinstance(lm, RouterLM):
@@ -807,6 +819,43 @@ def evaluate(
                             "prompt_hash": hash_string(requests[0].arguments[0]),
                             "target_hash": hash_string(str(target)),
                         }
+                        # Add energy and token usage metrics if available
+                        total_energy = sum(
+                            getattr(req, "energy_joules", 0) or 0 for req in requests
+                        )
+                        # Always include energy if tracking is enabled (even if 0)
+                        if total_energy >= 0:
+                            example["energy_joules"] = total_energy
+
+                        token_usages = [
+                            getattr(req, "token_usage", None) for req in requests
+                        ]
+                        if any(tu is not None for tu in token_usages):
+                            from lm_eval.api.router import TokenUsage
+
+                            total_tokens = TokenUsage()
+                            for tu in token_usages:
+                                if tu is not None:
+                                    total_tokens += tu
+                            example["token_usage"] = {
+                                "prompt_tokens": total_tokens.prompt_tokens,
+                                "completion_tokens": total_tokens.completion_tokens,
+                                "thinking_tokens": total_tokens.thinking_tokens,
+                                "total_tokens": total_tokens.total_tokens,
+                            }
+
+                        # Add latency and throughput metrics
+                        total_latency = sum(
+                            getattr(req, "latency_ms", 0) or 0 for req in requests
+                        )
+                        if total_latency > 0:
+                            example["latency_ms"] = total_latency
+                            avg_throughput = sum(
+                                getattr(req, "throughput", 0) or 0 for req in requests
+                            )
+                            if avg_throughput > 0:
+                                example["throughput"] = avg_throughput
+
                         example.update(metrics)
                         acc["logged_samples"].append(example)
                     for metric, value in metrics.items():

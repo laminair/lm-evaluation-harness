@@ -4,6 +4,7 @@ import copy
 import itertools
 import json
 import logging
+import time
 from functools import cached_property
 from typing import (
     TYPE_CHECKING,
@@ -38,6 +39,7 @@ from io import BytesIO
 from lm_eval import utils
 from lm_eval.api.instance import Instance
 from lm_eval.api.model import TemplateLM
+from lm_eval.api.router import TokenUsage
 from lm_eval.models.utils import Collator, chunks, configure_pad_token
 
 
@@ -189,6 +191,9 @@ class TemplateAPI(TemplateLM):
         self._eos_string = eos_string
         self.timeout = int(timeout)
         self.max_images = int(max_images)
+        self._request_token_usage: TokenUsage | None = None
+        self._request_token_usage_map: dict = {}  # cache_key -> TokenUsage
+        self._request_latency_map: dict = {}  # cache_key -> latency_ms
 
         eval_logger.info(f"Using tokenizer {self.tokenizer_backend}")
         if self.tokenizer_backend is None:
@@ -394,6 +399,65 @@ class TemplateAPI(TemplateLM):
             else:
                 return self.tokenizer.eot_token
 
+    def _estimate_thinking_tokens(self, thinking_content: str) -> int:
+        """Estimate token count in thinking content.
+
+        Uses tiktoken if available for accurate counting,
+        otherwise falls back to ~4 chars per token with a warning.
+        """
+        if not thinking_content:
+            return 0
+
+        try:
+            import tiktoken
+
+            enc = tiktoken.get_encoding("cl100k_base")
+            return len(enc.encode(thinking_content))
+        except ImportError:
+            import warnings
+
+            warnings.warn(
+                "tiktoken not installed, estimating thinking tokens as len/4. "
+                "Install tiktoken for accurate counting: pip install tiktoken"
+            )
+            return max(1, len(thinking_content) // 4)
+
+    def _extract_token_usage(self, outputs: Union[Dict, List[Dict]]) -> TokenUsage:
+        """Extract token usage from API response.
+
+        Handles OpenAI-style usage fields including:
+        - prompt_tokens, completion_tokens, total_tokens
+        - reasoning_content for thinking models (o1, o3, o4)
+        """
+        total_usage = TokenUsage()
+
+        if not isinstance(outputs, list):
+            outputs = [outputs]
+
+        for out in outputs:
+            usage = out.get("usage", {})
+            prompt_tokens = usage.get("prompt_tokens", 0)
+            completion_tokens = usage.get("completion_tokens", 0)
+            total_tokens = usage.get("total_tokens", 0)
+
+            reasoning_content = out.get("reasoning_content", "")
+            thinking_tokens = self._estimate_thinking_tokens(reasoning_content)
+
+            total_usage.prompt_tokens += prompt_tokens
+            total_usage.completion_tokens += completion_tokens
+            total_usage.thinking_tokens += thinking_tokens
+            total_usage.total_tokens += total_tokens
+
+        return total_usage
+
+    def get_accumulated_metrics(self) -> dict:
+        """Return accumulated metrics for API models including token usage tracking."""
+        return {
+            "energy_joules": 0.0,
+            "token_usage": self._request_token_usage,
+            "per_request_energy": {},
+        }
+
     def tok_encode(
         self,
         string: str,
@@ -543,7 +607,9 @@ class TemplateAPI(TemplateLM):
             return answers
         # If the retries also fail
         except BaseException as e:
-            eval_logger.error(f"Exception:{repr(e)}, {locals().get('outputs', '(no outputs)')}, retrying.")
+            eval_logger.error(
+                f"Exception:{repr(e)}, {locals().get('outputs', '(no outputs)')}, retrying."
+            )
             raise e
         finally:
             if acquired:
@@ -684,6 +750,7 @@ class TemplateAPI(TemplateLM):
         self, requests: List[Instance], disable_tqdm: bool = False
     ) -> List[str]:
         res = []
+        original_requests = requests  # Preserve for token usage attribution
 
         def _collate_gen(_requests):
             # sort by the length of the non-tokenized contexts
@@ -754,6 +821,7 @@ class TemplateAPI(TemplateLM):
                         )
 
                 req = encodings_list if self.tokenized_requests else contexts
+                start_time = time.perf_counter()
                 outputs = retry(
                     stop=stop_after_attempt(self.max_retries),
                     wait=wait_exponential(multiplier=0.5, min=1, max=10),
@@ -763,6 +831,43 @@ class TemplateAPI(TemplateLM):
                     generate=True,
                     gen_kwargs=copy.deepcopy(all_gen_kwargs[0]),
                 )
+                end_time = time.perf_counter()
+                batch_latency_ms = (end_time - start_time) * 1000
+                latency_per_request = (
+                    batch_latency_ms / len(contexts) if contexts else 0.0
+                )
+
+                # Extract and accumulate token usage
+                token_usage = self._extract_token_usage(outputs)
+                if (
+                    not hasattr(self, "_request_token_usage")
+                    or self._request_token_usage is None
+                ):
+                    self._request_token_usage = token_usage
+                else:
+                    self._request_token_usage += token_usage
+
+                # Store per-request token usage (divided evenly across batch)
+                token_per_request = TokenUsage()
+                if token_usage and len(contexts) > 0:
+                    token_per_request.prompt_tokens = token_usage.prompt_tokens // len(
+                        contexts
+                    )
+                    token_per_request.completion_tokens = (
+                        token_usage.completion_tokens // len(contexts)
+                    )
+                    token_per_request.thinking_tokens = (
+                        token_usage.thinking_tokens // len(contexts)
+                    )
+                    token_per_request.total_tokens = token_usage.total_tokens // len(
+                        contexts
+                    )
+
+                for context in contexts:
+                    cache_key = (context, tuple(all_gen_kwargs[0].items()))
+                    self._request_token_usage_map[cache_key] = token_per_request
+                    self._request_latency_map[cache_key] = latency_per_request
+
                 for generated_text, context in zip(
                     self.parse_generations(
                         outputs=outputs,
@@ -827,7 +932,19 @@ class TemplateAPI(TemplateLM):
                     else:
                         res.append(r)
 
-        return re_ord.get_original(res)
+        res = re_ord.get_original(res)
+
+        # Attribute token usage, latency, and throughput to instances
+        for req in original_requests:
+            cache_key = (req.args[0], tuple(req.args[1].items()))
+            if cache_key in self._request_token_usage_map:
+                req.token_usage = self._request_token_usage_map[cache_key]
+            if cache_key in self._request_latency_map:
+                req.latency_ms = self._request_latency_map[cache_key]
+                if req.latency_ms > 0:
+                    req.throughput = 1000.0 / req.latency_ms
+
+        return res
 
     def loglikelihood_rolling(
         self, requests: List[Instance], disable_tqdm: bool = False

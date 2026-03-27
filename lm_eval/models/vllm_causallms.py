@@ -3,6 +3,7 @@ from __future__ import annotations
 import gc
 import logging
 import os
+import time
 from importlib.metadata import version
 from importlib.util import find_spec
 from multiprocessing import Process, Queue
@@ -157,6 +158,10 @@ class VLLM(TemplateLM):
         think_end_token: str | None = None,
         max_lora_rank: int = 16,
         truncation_side: Literal["left", "right", "middle"] = "left",
+        # Energy tracking
+        track_energy: bool = False,
+        energy_monitor_gpu_indices: list[int] | None = None,
+        approx_instant_energy: bool = True,
         **kwargs,
     ):
         super().__init__()
@@ -283,6 +288,36 @@ class VLLM(TemplateLM):
             self.lora_request = LoRARequest("finetuned", 1, lora_local_path)
         else:
             self.lora_request = None
+
+        self._track_energy = track_energy
+        self._energy_monitor = None
+        self._request_energy = {}
+        self._request_latency: dict = {}
+        self._request_token_usage: dict = {}
+        self._last_batch_latency_ms: float = 0.0
+        if track_energy:
+            from lm_eval._energy.energy_monitor import EnergyMonitor
+
+            self._energy_monitor = EnergyMonitor(
+                gpu_indices=energy_monitor_gpu_indices,
+                window_name="vllm_generate",
+                approx_instant_energy=approx_instant_energy,
+            )
+
+    def get_accumulated_metrics(self) -> dict:
+        """Return accumulated metrics for vLLM including energy tracking."""
+        total_energy = 0.0
+        if (
+            self._energy_monitor is not None
+            and self._energy_monitor.last_measurement is not None
+        ):
+            total_energy = self._energy_monitor.last_measurement.total_energy
+
+        return {
+            "energy_joules": total_energy,
+            "token_usage": None,
+            "per_request_energy": dict(self._request_energy),
+        }
 
     @property
     def eot_token_id(self):
@@ -547,12 +582,28 @@ class VLLM(TemplateLM):
                             proc.kill()
 
         else:
-            outputs = self.model.generate(
-                [TokensPrompt(prompt_token_ids=request) for request in requests],
-                sampling_params=sampling_params,
-                use_tqdm=self.batch_size == "auto",
-                lora_request=self.lora_request,
-            )
+            # Single GPU path - track latency
+            start_time = time.perf_counter()
+            if self._track_energy and self._energy_monitor is not None:
+                with self._energy_monitor:
+                    outputs = self.model.generate(
+                        [
+                            TokensPrompt(prompt_token_ids=request)
+                            for request in requests
+                        ],
+                        sampling_params=sampling_params,
+                        use_tqdm=self.batch_size == "auto",
+                        lora_request=self.lora_request,
+                    )
+            else:
+                outputs = self.model.generate(
+                    [TokensPrompt(prompt_token_ids=request) for request in requests],
+                    sampling_params=sampling_params,
+                    use_tqdm=self.batch_size == "auto",
+                    lora_request=self.lora_request,
+                )
+            end_time = time.perf_counter()
+            self._last_batch_latency_ms = (end_time - start_time) * 1000
             return outputs
 
     def loglikelihood_rolling(
@@ -623,6 +674,26 @@ class VLLM(TemplateLM):
             )
 
         return loglikelihoods
+
+    def loglikelihood(
+        self, requests: list[Instance], disable_tqdm: bool = False
+    ) -> list[tuple[float, bool]]:
+        """Override to add energy and latency attribution to Instances."""
+        results = super().loglikelihood(requests, disable_tqdm=disable_tqdm)
+
+        # Attribute energy, latency, throughput, and token usage to instances
+        for req in requests:
+            cache_key = req.args  # (context, continuation)
+            if self._track_energy and cache_key in self._request_energy:
+                req.energy_joules = self._request_energy[cache_key]
+            if cache_key in self._request_latency:
+                req.latency_ms = self._request_latency[cache_key]
+                if req.latency_ms > 0:
+                    req.throughput = 1000.0 / req.latency_ms
+            if cache_key in self._request_token_usage:
+                req.token_usage = self._request_token_usage[cache_key]
+
+        return results
 
     def generate_until(
         self, requests: list[Instance], disable_tqdm: bool = False
@@ -703,6 +774,48 @@ class VLLM(TemplateLM):
                 sampling_params=sampling_params,
             )
 
+            # Latency and throughput tracking
+            batch_latency_ms = self._last_batch_latency_ms
+            batch_size = len(cont)
+
+            # Energy tracking - get measurement from _model_generate via the monitor
+            if self._track_energy and self._energy_monitor is not None:
+                measurement = self._energy_monitor.last_measurement
+                if measurement is not None:
+                    # Divide by batch size for per-request attribution
+                    energy_per_request = (
+                        measurement.total_energy / batch_size if cont else 0.0
+                    )
+                    for _context, _gen_kwargs in zip(
+                        context, _cache_gen_kwargs, strict=True
+                    ):
+                        cache_key = (_context, tuple(_gen_kwargs.items()))
+                        self._request_energy[cache_key] = energy_per_request
+
+            # Store latency per request (divided evenly across batch)
+            latency_per_request = (
+                batch_latency_ms / batch_size if batch_size > 0 else 0.0
+            )
+            for _context, _gen_kwargs in zip(context, _cache_gen_kwargs, strict=True):
+                cache_key = (_context, tuple(_gen_kwargs.items()))
+                self._request_latency[cache_key] = latency_per_request
+
+            # Store token usage per request
+            from lm_eval.api.router import TokenUsage
+
+            for output, _context, _gen_kwargs in zip(
+                cont, context, _cache_gen_kwargs, strict=True
+            ):
+                cache_key = (_context, tuple(_gen_kwargs.items()))
+                token_usage = TokenUsage()
+                token_usage.prompt_tokens = len(output.prompt_token_ids)
+                token_usage.completion_tokens = len(output.outputs[0].token_ids)
+                token_usage.thinking_tokens = 0
+                token_usage.total_tokens = (
+                    token_usage.prompt_tokens + token_usage.completion_tokens
+                )
+                self._request_token_usage[cache_key] = token_usage
+
             # cache generations
             for output, _context, _gen_kwargs in zip(
                 cont, context, _cache_gen_kwargs, strict=True
@@ -720,7 +833,21 @@ class VLLM(TemplateLM):
 
         pbar.close()
         # reorder all group of results back to original unsorted form
-        return re_ords.get_original(res)
+        res = re_ords.get_original(res)
+
+        # Attribute energy, latency, throughput, and token usage to instances
+        for req in requests:
+            cache_key = (req.args[0], tuple(req.args[1].items()))
+            if self._track_energy and cache_key in self._request_energy:
+                req.energy_joules = self._request_energy[cache_key]
+            if cache_key in self._request_latency:
+                req.latency_ms = self._request_latency[cache_key]
+                if req.latency_ms > 0:
+                    req.throughput = 1000.0 / req.latency_ms
+            if cache_key in self._request_token_usage:
+                req.token_usage = self._request_token_usage[cache_key]
+
+        return res
 
     def _loglikelihood_tokens(
         self,
@@ -748,6 +875,7 @@ class VLLM(TemplateLM):
         for chunk in chunks:
             inputs = []
             ctxlens = []
+            continuation_lens = []
             for _, context_enc, continuation_enc in chunk:
                 if (full_length := len(context_enc + continuation_enc)) > max_cxt_len:
                     eval_logger.warning(
@@ -760,8 +888,46 @@ class VLLM(TemplateLM):
 
                 inputs.append(inp)
                 ctxlens.append(ctxlen)
+                continuation_lens.append(len(continuation_enc))
 
             outputs = self._model_generate(requests=inputs, generate=False)
+
+            # Latency tracking
+            batch_latency_ms = self._last_batch_latency_ms
+            batch_size = len(outputs)
+            latency_per_request = (
+                batch_latency_ms / batch_size if batch_size > 0 else 0.0
+            )
+
+            # Energy tracking - get measurement from _model_generate
+            if self._track_energy and self._energy_monitor is not None:
+                measurement = self._energy_monitor.last_measurement
+                if measurement is not None:
+                    energy_per_request = (
+                        measurement.total_energy / batch_size if outputs else 0.0
+                    )
+                    for cache_key, _, _ in chunk:
+                        if cache_key is not None:
+                            self._request_energy[cache_key] = energy_per_request
+
+            # Store latency per request
+            for cache_key, _, _ in chunk:
+                if cache_key is not None:
+                    self._request_latency[cache_key] = latency_per_request
+
+            # Store token usage per request
+            from lm_eval.api.router import TokenUsage
+
+            for (cache_key, _, _), ctxlen, cont_len in zip(
+                chunk, ctxlens, continuation_lens, strict=True
+            ):
+                if cache_key is not None:
+                    token_usage = TokenUsage()
+                    token_usage.prompt_tokens = ctxlen
+                    token_usage.completion_tokens = cont_len
+                    token_usage.thinking_tokens = 0
+                    token_usage.total_tokens = ctxlen + cont_len
+                    self._request_token_usage[cache_key] = token_usage
 
             for output, ctxlen, (cache_key, _, _), inp in zip(
                 outputs, ctxlens, chunk, inputs, strict=True

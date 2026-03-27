@@ -297,6 +297,12 @@ class Run(SubCommand):
             metavar="<args>",
             help="Hugging Face Hub logging arguments key=val key2=val2",
         )
+        logging_group.add_argument(
+            "--track_energy",
+            action="store_true",
+            default=None,
+            help="Track energy consumption per request using Zeus (requires --model_args track_energy=true and zeus package)",
+        )
 
         # Advanced Options
         advanced_group = self._parser.add_argument_group("advanced options")
@@ -384,6 +390,12 @@ class Run(SubCommand):
         if cfg.include_path is not None:
             eval_logger.info(f"Including path: {cfg.include_path}")
         eval_logger.info(f"Selected Tasks: {cfg.tasks}")
+
+        # Handle --track_energy flag by adding to model_args
+        if getattr(cfg, "track_energy", False):
+            if cfg.model_args is None:
+                cfg.model_args = {}
+            cfg.model_args["track_energy"] = True
 
         # Run evaluation
         results = simple_evaluate(

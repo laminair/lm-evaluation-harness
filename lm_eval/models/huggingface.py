@@ -110,6 +110,9 @@ class HFLM(TemplateLM):
         chat_template_args: dict[str, Any] | None = None,
         **kwargs,
     ) -> None:
+        # Filter out energy tracking kwargs that shouldn't be passed to the model
+        kwargs.pop("track_energy", None)
+        kwargs.pop("energy_monitor_gpu_indices", None)
         """Initialize an HFLM instance for evaluating HuggingFace models.
 
         Args:

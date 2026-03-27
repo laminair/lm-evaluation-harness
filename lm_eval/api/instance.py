@@ -24,6 +24,12 @@ class Instance:
     doc_id: Optional[int] = None
     repeats: Optional[int] = None
 
+    # Per-request metrics
+    energy_joules: float = 0.0
+    token_usage: Optional["TokenUsage"] = None
+    latency_ms: float = 0.0
+    throughput: float = 0.0
+
     def __post_init__(self) -> None:
         # unpack metadata field
         self.task_name, self.doc_id, self.repeats = self.metadata

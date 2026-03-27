@@ -30,7 +30,7 @@ srun enroot start \
     -m /dss/dsshome1/09/$USER:/root \
     --root messplus_v2 bash -c "
     cd $WORK_DIR && \
-    lm_eval \
+    uv run lm_eval \
         --model vllm \
         --model_args pretrained=QuantTrio/Qwen3.5-27B-AWQ,dtype=float16,gpu_memory_utilization=0.9,trust_remote_code=True \
         --tasks piqa \

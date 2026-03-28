@@ -30,8 +30,7 @@ srun enroot start \
     -m /dss/dsshome1/09/$USER:/root \
     --root messplus_v2 bash -c "
     cd $WORK_DIR && \
-    uv pip install ray && \
-    uv run lm_eval \
+    uv run --extra vllm --extra energy lm_eval \
         --model vllm \
         --model_args pretrained=QuantTrio/Qwen3.5-9B-AWQ,dtype=float16,gpu_memory_utilization=0.9,trust_remote_code=True \
         --tasks arc_challenge,logiqa \

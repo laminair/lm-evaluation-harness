@@ -25,7 +25,7 @@ IMAGE=/dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2/mess-plus-v2/mes
 enroot create --name messplus_v2 "$IMAGE" || true
 
 # Run evaluation in enroot container with mounts
-srun enroot start \
+enroot start \
     -m /dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2:/dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2 \
     -m /dss/dsshome1/09/$USER:/root \
     --root messplus_v2 bash -c "

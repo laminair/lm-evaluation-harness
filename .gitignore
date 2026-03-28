@@ -31,6 +31,7 @@ data/
 temp/
 test_logs/
 results/
+raw_data/
 
 # Caching
 lm_eval/caching/.cache

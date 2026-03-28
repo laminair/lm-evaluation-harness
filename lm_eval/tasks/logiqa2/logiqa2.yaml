@@ -1,6 +1,8 @@
 task: logiqa2
 dataset_path: baber/logiqa2
 dataset_name: logiqa2
+dataset_kwargs:
+  trust_remote_code: true
 output_type: multiple_choice
 training_split: train
 validation_split: validation

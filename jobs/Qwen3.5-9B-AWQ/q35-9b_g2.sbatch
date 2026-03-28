@@ -33,7 +33,7 @@ enroot start \
     uv run --extra vllm --extra energy lm_eval run \
         --model vllm \
         --model_args pretrained=QuantTrio/Qwen3.5-9B-AWQ,enforce_eager=True,gdn_prefill_backend=triton,track_energy=true,approx_instant_energy=true,dtype=float16,gpu_memory_utilization=0.9,trust_remote_code=True \
-        --tasks boolq,arc_easy,socialiqa \
+        --tasks boolq,arc_easy,social_iqa \
         --batch_size 1 \
         --output_path /dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2/lm-evaluation-harness/results/Qwen3.5-9B-AWQ/group_b \
         --log_samples \

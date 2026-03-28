@@ -85,7 +85,7 @@ create_sbatch \
 create_sbatch \
     "Qwen3.5-2B" \
     "Qwen/Qwen3.5-2B" \
-    "arc_easy,boolq,logiqa,socialiqa" \
+    "arc_easy,boolq,logiqa,social_iqa" \
     "02:00:00" \
     "q35-2b_g2" \
     "$RESULTS_DIR/Qwen3.5-2B/group_b"
@@ -104,7 +104,7 @@ create_sbatch \
 create_sbatch \
     "Qwen3.5-9B-AWQ" \
     "QuantTrio/Qwen3.5-9B-AWQ" \
-    "boolq,arc_easy,socialiqa" \
+    "boolq,arc_easy,social_iqa" \
     "01:30:00" \
     "q35-9b_g2" \
     "$RESULTS_DIR/Qwen3.5-9B-AWQ/group_b"
@@ -187,10 +187,10 @@ create_sbatch \
 create_sbatch \
     "Qwen3.5-27B-AWQ" \
     "QuantTrio/Qwen3.5-27B-AWQ" \
-    "socialiqa" \
+    "social_iqa" \
     "04:00:00" \
-    "q35-27b_socialiqa" \
-    "$RESULTS_DIR/Qwen3.5-27B-AWQ/socialiqa"
+    "q35-27b_social_iqa" \
+    "$RESULTS_DIR/Qwen3.5-27B-AWQ/social_iqa"
 
 # Qwen3.5-35B-A3B-AWQ (8 jobs, ~64h total)
 echo ""
@@ -254,10 +254,10 @@ create_sbatch \
 create_sbatch \
     "Qwen3.5-35B-A3B-AWQ" \
     "QuantTrio/Qwen3.5-35B-A3B-AWQ" \
-    "socialiqa" \
+    "social_iqa" \
     "06:00:00" \
-    "q35-35b_socialiqa" \
-    "$RESULTS_DIR/Qwen3.5-35B-A3B-AWQ/socialiqa"
+    "q35-35b_social_iqa" \
+    "$RESULTS_DIR/Qwen3.5-35B-A3B-AWQ/social_iqa"
 
 echo ""
 echo "=========================================="

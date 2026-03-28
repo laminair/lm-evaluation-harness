@@ -1,6 +1,8 @@
 task: social_iqa
 dataset_path: allenai/social_i_qa
 dataset_name: null
+dataset_kwargs:
+  trust_remote_code: true
 output_type: multiple_choice
 training_split: train
 validation_split: validation

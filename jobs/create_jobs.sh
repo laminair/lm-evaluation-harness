@@ -57,7 +57,7 @@ enroot start \\
     cd \$WORK_DIR && \\
     uv run --extra vllm --extra energy lm_eval run \\
         --model vllm \\
-        --model_args pretrained=${model_path},enforce_eager=True,track_energy=true,approx_instant_energy=true,dtype=float16,gpu_memory_utilization=0.9,trust_remote_code=True \\
+        --model_args pretrained=${model_path},enforce_eager=True,gdn_prefill_backend=triton,track_energy=true,approx_instant_energy=true,dtype=float16,gpu_memory_utilization=0.9,trust_remote_code=True \\
         --tasks ${tasks} \\
         --batch_size 1 \\
         --output_path ${output_dir} \\
@@ -85,7 +85,7 @@ create_sbatch \
 create_sbatch \
     "Qwen3.5-2B" \
     "Qwen/Qwen3.5-2B" \
-    "arc_easy,boolq,logiqa,socialiqa_zeroshot" \
+    "arc_easy,boolq,logiqa,socialiqa" \
     "02:00:00" \
     "q35-2b_g2" \
     "$RESULTS_DIR/Qwen3.5-2B/group_b"
@@ -104,7 +104,7 @@ create_sbatch \
 create_sbatch \
     "Qwen3.5-9B-AWQ" \
     "QuantTrio/Qwen3.5-9B-AWQ" \
-    "boolq,arc_easy,socialiqa_zeroshot" \
+    "boolq,arc_easy,socialiqa" \
     "01:30:00" \
     "q35-9b_g2" \
     "$RESULTS_DIR/Qwen3.5-9B-AWQ/group_b"
@@ -187,10 +187,10 @@ create_sbatch \
 create_sbatch \
     "Qwen3.5-27B-AWQ" \
     "QuantTrio/Qwen3.5-27B-AWQ" \
-    "socialiqa_zeroshot" \
+    "socialiqa" \
     "04:00:00" \
     "q35-27b_socialiqa" \
-    "$RESULTS_DIR/Qwen3.5-27B-AWQ/socialiqa_zeroshot"
+    "$RESULTS_DIR/Qwen3.5-27B-AWQ/socialiqa"
 
 # Qwen3.5-35B-A3B-AWQ (8 jobs, ~64h total)
 echo ""
@@ -254,10 +254,10 @@ create_sbatch \
 create_sbatch \
     "Qwen3.5-35B-A3B-AWQ" \
     "QuantTrio/Qwen3.5-35B-A3B-AWQ" \
-    "socialiqa_zeroshot" \
+    "socialiqa" \
     "06:00:00" \
     "q35-35b_socialiqa" \
-    "$RESULTS_DIR/Qwen3.5-35B-A3B-AWQ/socialiqa_zeroshot"
+    "$RESULTS_DIR/Qwen3.5-35B-A3B-AWQ/socialiqa"
 
 echo ""
 echo "=========================================="

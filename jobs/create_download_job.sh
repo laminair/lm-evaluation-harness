@@ -12,7 +12,7 @@ cat > "$sbatch_file" <<EOF
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --gres=gpu:1
-#SBATCH --time=04:00:00
+#SBATCH --time=01:00:00
 #SBATCH --job-name=download_models
 #SBATCH --output=%x_%j.out
 

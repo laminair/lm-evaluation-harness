@@ -5,6 +5,13 @@ SUMMARY_FILE="${JOBS_DIR}/job_summary_$(date +%Y%m%d_%H%M%S).txt"
 MAX_CONCURRENT=7
 POLL_INTERVAL=120
 
+V36_TASKS="logiqa,logiqa2,social_iqa"
+
+needs_v36() {
+    local task="$1"
+    [[ ",$V36_TASKS," == *",$task,"* ]]
+}
+
 declare -a PENDING_JOBS
 declare -A RUNNING_JOBS
 declare -A FAILED_JOBS
@@ -50,6 +57,7 @@ submit_job() {
 }
 
 collect_pending_jobs() {
+    local phase="$1"
     PENDING_JOBS=()
     
     for model_dir in "Qwen3.5-2B" "Qwen3.5-9B-AWQ" "Qwen3.5-27B-AWQ" "Qwen3.5-35B-A3B-AWQ"; do
@@ -58,8 +66,21 @@ collect_pending_jobs() {
         if [ -d "$model_path" ]; then
             for sbatch_file in "$model_path"/*.sbatch; do
                 if [ -f "$sbatch_file" ]; then
-                    PENDING_JOBS+=("$sbatch_file")
-                    ((TOTAL_JOBS++))
+                    local job_name
+                    job_name=$(basename "$sbatch_file" .sbatch)
+                    local task_name="${job_name#q35-*_}"
+                    
+                    local should_add=false
+                    if [ "$phase" = "v4" ] && ! needs_v36 "$task_name"; then
+                        should_add=true
+                    elif [ "$phase" = "v36" ] && needs_v36 "$task_name"; then
+                        should_add=true
+                    fi
+                    
+                    if $should_add; then
+                        PENDING_JOBS+=("$sbatch_file")
+                        ((TOTAL_JOBS++))
+                    fi
                 fi
             done
         fi
@@ -100,6 +121,69 @@ print_status() {
     fi
     
     echo "=========================================="
+    echo ""
+}
+
+run_phase() {
+    local phase_name="$1"
+    local phase_count=${#PENDING_JOBS[@]}
+    
+    log "Phase: $phase_name - $phase_count jobs to submit"
+    echo ""
+    
+    log "Submitting initial batch (up to $MAX_CONCURRENT jobs)..."
+    while [ ${#PENDING_JOBS[@]} -gt 0 ] && [ ${#RUNNING_JOBS[@]} -lt $MAX_CONCURRENT ]; do
+        local sbatch_file="${PENDING_JOBS[0]}"
+        PENDING_JOBS=("${PENDING_JOBS[@]:1}")
+        submit_job "$sbatch_file"
+    done
+    
+    print_status
+    
+    log "Entering monitoring loop..."
+    
+    while [ ${#PENDING_JOBS[@]} -gt 0 ] || [ ${#RUNNING_JOBS[@]} -gt 0 ]; do
+        sleep $POLL_INTERVAL
+        
+        local to_remove=()
+        
+        for job_id in "${!RUNNING_JOBS[@]}"; do
+            local job_name="${RUNNING_JOBS[$job_id]}"
+            local status
+            status=$(get_job_status "$job_id")
+            
+            if [ "$status" = "COMPLETED" ]; then
+                local job_exit_code
+                job_exit_code=$(sacct -j "$job_id" -n -P -o "ExitCode" 2>/dev/null | head -1 | cut -d: -f1)
+                
+                if [ "$job_exit_code" = "0" ]; then
+                    log "Job COMPLETED: $job_name (Job ID: $job_id)"
+                    COMPLETED_JOBS["$job_id"]="$job_name"
+                    ((COMPLETED_COUNT++))
+                else
+                    log "Job FAILED: $job_name (Job ID: $job_id, Exit Code: $job_exit_code)"
+                    FAILED_JOBS["$job_name"]="EXIT_CODE_$job_exit_code"
+                    ((FAILED_COUNT++))
+                fi
+                
+                to_remove+=("$job_id")
+            fi
+        done
+        
+        for job_id in "${to_remove[@]}"; do
+            unset RUNNING_JOBS["$job_id"]
+        done
+        
+        while [ ${#PENDING_JOBS[@]} -gt 0 ] && [ ${#RUNNING_JOBS[@]} -lt $MAX_CONCURRENT ]; do
+            local sbatch_file="${PENDING_JOBS[0]}"
+            PENDING_JOBS=("${PENDING_JOBS[@]:1}")
+            submit_job "$sbatch_file"
+        done
+        
+        print_status
+    done
+    
+    log "Phase complete: $phase_name"
     echo ""
 }
 
@@ -171,64 +255,29 @@ main() {
     log "Max concurrent jobs: $MAX_CONCURRENT"
     log "Polling interval: ${POLL_INTERVAL}s"
     echo ""
-    
-    collect_pending_jobs
-    
-    log "Found $TOTAL_JOBS total jobs to submit"
+    echo "=========================================="
+    echo "PHASE 1: Tasks using datasets>=4.0"
+    echo "  Tasks: arc_challenge, arc_easy, boolq,"
+    echo "         piqa, sciq, winogrande"
+    echo "=========================================="
     echo ""
     
-    log "Submitting initial batch (up to $MAX_CONCURRENT jobs)..."
-    local initial_count=0
-    while [ ${#PENDING_JOBS[@]} -gt 0 ] && [ ${#RUNNING_JOBS[@]} -lt $MAX_CONCURRENT ]; do
-        local sbatch_file="${PENDING_JOBS[0]}"
-        PENDING_JOBS=("${PENDING_JOBS[@]:1}")
-        submit_job "$sbatch_file"
-    done
+    collect_pending_jobs "v4"
+    local v4_count=${#PENDING_JOBS[@]}
+    log "Found $v4_count v4 jobs to submit"
+    run_phase "v4 (datasets>=4.0)"
     
-    print_status
+    echo ""
+    echo "=========================================="
+    echo "PHASE 2: Tasks using datasets==3.6.0"
+    echo "  Tasks: logiqa, logiqa2, social_iqa"
+    echo "=========================================="
+    echo ""
     
-    log "Entering monitoring loop..."
-    
-    while [ ${#PENDING_JOBS[@]} -gt 0 ] || [ ${#RUNNING_JOBS[@]} -gt 0 ]; do
-        sleep $POLL_INTERVAL
-        
-        local to_remove=()
-        
-        for job_id in "${!RUNNING_JOBS[@]}"; do
-            local job_name="${RUNNING_JOBS[$job_id]}"
-            local status
-            status=$(get_job_status "$job_id")
-            
-            if [ "$status" = "COMPLETED" ]; then
-                local job_exit_code
-                job_exit_code=$(sacct -j "$job_id" -n -P -o "ExitCode" 2>/dev/null | head -1 | cut -d: -f1)
-                
-                if [ "$job_exit_code" = "0" ]; then
-                    log "Job COMPLETED: $job_name (Job ID: $job_id)"
-                    COMPLETED_JOBS["$job_id"]="$job_name"
-                    ((COMPLETED_COUNT++))
-                else
-                    log "Job FAILED: $job_name (Job ID: $job_id, Exit Code: $job_exit_code)"
-                    FAILED_JOBS["$job_name"]="EXIT_CODE_$job_exit_code"
-                    ((FAILED_COUNT++))
-                fi
-                
-                to_remove+=("$job_id")
-            fi
-        done
-        
-        for job_id in "${to_remove[@]}"; do
-            unset RUNNING_JOBS["$job_id"]
-        done
-        
-        while [ ${#PENDING_JOBS[@]} -gt 0 ] && [ ${#RUNNING_JOBS[@]} -lt $MAX_CONCURRENT ]; do
-            local sbatch_file="${PENDING_JOBS[0]}"
-            PENDING_JOBS=("${PENDING_JOBS[@]:1}")
-            submit_job "$sbatch_file"
-        done
-        
-        print_status
-    done
+    collect_pending_jobs "v36"
+    local v36_count=${#PENDING_JOBS[@]}
+    log "Found $v36_count v3.6 jobs to submit"
+    run_phase "v3.6 (datasets==3.6.0)"
     
     log "All jobs finished!"
     echo ""

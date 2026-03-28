@@ -132,7 +132,7 @@ create_sbatch \
     "Qwen3.5-27B-AWQ" \
     "QuantTrio/Qwen3.5-27B-AWQ" \
     "arc_challenge" \
-    "08:00:00" \
+    "02:00:00" \
     "q35-27b_arc_challenge" \
     "$RESULTS_DIR/Qwen3.5-27B-AWQ/arc_challenge"
 
@@ -140,7 +140,7 @@ create_sbatch \
     "Qwen3.5-27B-AWQ" \
     "QuantTrio/Qwen3.5-27B-AWQ" \
     "arc_easy" \
-    "04:00:00" \
+    "02:00:00" \
     "q35-27b_arc_easy" \
     "$RESULTS_DIR/Qwen3.5-27B-AWQ/arc_easy"
 
@@ -148,7 +148,7 @@ create_sbatch \
     "Qwen3.5-27B-AWQ" \
     "QuantTrio/Qwen3.5-27B-AWQ" \
     "winogrande" \
-    "03:00:00" \
+    "01:00:00" \
     "q35-27b_winogrande" \
     "$RESULTS_DIR/Qwen3.5-27B-AWQ/winogrande"
 
@@ -156,7 +156,7 @@ create_sbatch \
     "Qwen3.5-27B-AWQ" \
     "QuantTrio/Qwen3.5-27B-AWQ" \
     "boolq" \
-    "03:00:00" \
+    "01:00:00" \
     "q35-27b_boolq" \
     "$RESULTS_DIR/Qwen3.5-27B-AWQ/boolq"
 
@@ -164,7 +164,7 @@ create_sbatch \
     "Qwen3.5-27B-AWQ" \
     "QuantTrio/Qwen3.5-27B-AWQ" \
     "logiqa" \
-    "04:00:00" \
+    "02:00:00" \
     "q35-27b_logiqa" \
     "$RESULTS_DIR/Qwen3.5-27B-AWQ/logiqa"
 
@@ -172,7 +172,7 @@ create_sbatch \
     "Qwen3.5-27B-AWQ" \
     "QuantTrio/Qwen3.5-27B-AWQ" \
     "piqa" \
-    "03:00:00" \
+    "01:00:00" \
     "q35-27b_piqa" \
     "$RESULTS_DIR/Qwen3.5-27B-AWQ/piqa"
 
@@ -180,7 +180,7 @@ create_sbatch \
     "Qwen3.5-27B-AWQ" \
     "QuantTrio/Qwen3.5-27B-AWQ" \
     "sciq" \
-    "03:00:00" \
+    "01:00:00" \
     "q35-27b_sciq" \
     "$RESULTS_DIR/Qwen3.5-27B-AWQ/sciq"
 
@@ -188,7 +188,7 @@ create_sbatch \
     "Qwen3.5-27B-AWQ" \
     "QuantTrio/Qwen3.5-27B-AWQ" \
     "social_iqa" \
-    "04:00:00" \
+    "02:00:00" \
     "q35-27b_social_iqa" \
     "$RESULTS_DIR/Qwen3.5-27B-AWQ/social_iqa"
 
@@ -199,7 +199,7 @@ create_sbatch \
     "Qwen3.5-35B-A3B-AWQ" \
     "QuantTrio/Qwen3.5-35B-A3B-AWQ" \
     "arc_challenge" \
-    "12:00:00" \
+    "02:00:00" \
     "q35-35b_arc_challenge" \
     "$RESULTS_DIR/Qwen3.5-35B-A3B-AWQ/arc_challenge"
 
@@ -207,7 +207,7 @@ create_sbatch \
     "Qwen3.5-35B-A3B-AWQ" \
     "QuantTrio/Qwen3.5-35B-A3B-AWQ" \
     "arc_easy" \
-    "04:00:00" \
+    "02:00:00" \
     "q35-35b_arc_easy" \
     "$RESULTS_DIR/Qwen3.5-35B-A3B-AWQ/arc_easy"
 
@@ -215,7 +215,7 @@ create_sbatch \
     "Qwen3.5-35B-A3B-AWQ" \
     "QuantTrio/Qwen3.5-35B-A3B-AWQ" \
     "winogrande" \
-    "04:00:00" \
+    "01:00:00" \
     "q35-35b_winogrande" \
     "$RESULTS_DIR/Qwen3.5-35B-A3B-AWQ/winogrande"
 
@@ -223,7 +223,7 @@ create_sbatch \
     "Qwen3.5-35B-A3B-AWQ" \
     "QuantTrio/Qwen3.5-35B-A3B-AWQ" \
     "boolq" \
-    "04:00:00" \
+    "01:00:00" \
     "q35-35b_boolq" \
     "$RESULTS_DIR/Qwen3.5-35B-A3B-AWQ/boolq"
 
@@ -231,7 +231,7 @@ create_sbatch \
     "Qwen3.5-35B-A3B-AWQ" \
     "QuantTrio/Qwen3.5-35B-A3B-AWQ" \
     "logiqa" \
-    "06:00:00" \
+    "02:00:00" \
     "q35-35b_logiqa" \
     "$RESULTS_DIR/Qwen3.5-35B-A3B-AWQ/logiqa"
 
@@ -239,7 +239,7 @@ create_sbatch \
     "Qwen3.5-35B-A3B-AWQ" \
     "QuantTrio/Qwen3.5-35B-A3B-AWQ" \
     "piqa" \
-    "04:00:00" \
+    "01:00:00" \
     "q35-35b_piqa" \
     "$RESULTS_DIR/Qwen3.5-35B-A3B-AWQ/piqa"
 
@@ -247,7 +247,7 @@ create_sbatch \
     "Qwen3.5-35B-A3B-AWQ" \
     "QuantTrio/Qwen3.5-35B-A3B-AWQ" \
     "sciq" \
-    "04:00:00" \
+    "01:00:00" \
     "q35-35b_sciq" \
     "$RESULTS_DIR/Qwen3.5-35B-A3B-AWQ/sciq"
 
@@ -255,7 +255,7 @@ create_sbatch \
     "Qwen3.5-35B-A3B-AWQ" \
     "QuantTrio/Qwen3.5-35B-A3B-AWQ" \
     "social_iqa" \
-    "06:00:00" \
+    "02:00:00" \
     "q35-35b_social_iqa" \
     "$RESULTS_DIR/Qwen3.5-35B-A3B-AWQ/social_iqa"
 

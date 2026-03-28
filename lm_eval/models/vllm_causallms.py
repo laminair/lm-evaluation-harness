@@ -225,9 +225,17 @@ class VLLM(TemplateLM):
 
         from transformers import AutoConfig
 
-        self._config = AutoConfig.from_pretrained(
-            pretrained, trust_remote_code=trust_remote_code, revision=revision
-        )
+        try:
+            self._config = AutoConfig.from_pretrained(
+                pretrained, trust_remote_code=trust_remote_code, revision=revision
+            )
+        except (KeyError, ValueError) as e:
+            eval_logger.warning(
+                f"AutoConfig.from_pretrained failed: {e}. "
+                "This usually means transformers doesn't recognize the model type. "
+                "Using vLLM's internal model config as fallback."
+            )
+            self._config = self.model.llm_engine.model_config
         self.tokenizer: PreTrainedTokenizerBase = get_tokenizer(
             tokenizer or pretrained,
             tokenizer_mode=tokenizer_mode,

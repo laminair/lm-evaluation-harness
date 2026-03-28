@@ -53,8 +53,8 @@ Repository = "https://github.com/EleutherAI/lm-evaluation-harness"
 [project.optional-dependencies]
 # Model backend dependencies
 api = ["requests", "aiohttp", "tenacity", "tqdm", "tiktoken"]
-hf = ["transformers>=4.1","torch>=1.8", "accelerate>=0.26.0", "peft>=0.2.0",]
-vllm = ["vllm>=0.4.2", "ray"]
+hf = ["transformers>=4.57.0","torch>=1.8", "accelerate>=0.26.0", "peft>=0.2.0",]
+vllm = ["vllm==0.18.0", "ray", "torch==2.10.0"]
 gptq = ["auto-gptq[triton]>=0.6.0"]
 gptqmodel = ["gptqmodel>=1.0.9"]
 ipex = ["optimum-intel"]
@@ -70,7 +70,7 @@ habana = ["optimum-habana"]
 sparsify = ["sparsify"]
 #sae_lens = ["sae_lens"] #  sae-lens requires datasets < 3.0
 # Task specific dependencies
-acpbench = ["lark>=1.1.9", "tarski[clingo]==0.8.2", "pddl==0.4.2", "kstar-planner==1.4.2"]
+# acpbench = ["lark>=1.1.9", "tarski[clingo]==0.8.2", "pddl>=0.4.2", "kstar-planner==1.4.2"]
 audiolm_qwen = ["librosa", "soundfile"]
 dev = ["pytest", "pytest-cov", "pytest-xdist", "pre-commit", "requests", "aiohttp", "tenacity", "tqdm", "tiktoken", "sentencepiece", "ruff"]
 ifeval = ["langdetect", "immutabledict", "nltk>=3.9.1"]

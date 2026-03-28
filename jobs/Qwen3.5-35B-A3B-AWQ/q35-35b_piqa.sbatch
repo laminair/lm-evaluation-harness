@@ -6,7 +6,6 @@
 #SBATCH --time=04:00:00
 #SBATCH --job-name=q35-35b_piqa
 #SBATCH --output=%x_%j.out
-#SBATCH --error=%x_%j.err
 
 # Environment
 export HF_HOME=/dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2/.cache/hf
@@ -31,9 +30,9 @@ enroot start \
     -m /dss/dsshome1/09/$USER:/root \
     --root messplus_v2 bash -c "
     cd $WORK_DIR && \
-    uv run --extra vllm --extra energy lm_eval \
+    uv run --extra vllm --extra energy lm_eval run \
         --model vllm \
-        --model_args pretrained=QuantTrio/Qwen3.5-35B-A3B-AWQ,enforce_eager=True,dtype=float16,gpu_memory_utilization=0.9,trust_remote_code=True \
+        --model_args pretrained=QuantTrio/Qwen3.5-35B-A3B-AWQ,enforce_eager=True,track_energy=true,approx_instant_energy=true,dtype=float16,gpu_memory_utilization=0.9,trust_remote_code=True \
         --tasks piqa \
         --batch_size 1 \
         --output_path /dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2/lm-evaluation-harness/results/Qwen3.5-35B-A3B-AWQ/piqa \

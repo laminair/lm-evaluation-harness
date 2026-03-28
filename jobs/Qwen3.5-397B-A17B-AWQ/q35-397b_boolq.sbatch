@@ -2,9 +2,9 @@
 #SBATCH --partition=lrz-hgx-h100-94x4
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --gres=gpu:2
+#SBATCH --gres=gpu:4
 #SBATCH --time=02:00:00
-#SBATCH --job-name=q35-122b_arc_easy
+#SBATCH --job-name=q35-397b_boolq
 #SBATCH --output=%x_%j.out
 
 # Environment
@@ -32,10 +32,10 @@ enroot start \
     cd $WORK_DIR && \
     uv run --extra vllm --extra energy lm_eval run \
         --model vllm \
-        --model_args pretrained=QuantTrio/Qwen3.5-122B-A10B-AWQ,enforce_eager=True,gdn_prefill_backend=triton,tensor_parallel_size=2,gpu_memory_utilization=0.9,trust_remote_code=True \
-        --tasks arc_easy \
+        --model_args pretrained=QuantTrio/Qwen3.5-397B-A17B-AWQ,enforce_eager=True,gdn_prefill_backend=triton,tensor_parallel_size=4,gpu_memory_utilization=0.9,trust_remote_code=True \
+        --tasks boolq \
         --batch_size 1 \
-        --output_path /dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2/lm-evaluation-harness/results/Qwen3.5-122B-A10B-AWQ/arc_easy \
+        --output_path /dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2/lm-evaluation-harness/results/Qwen3.5-397B-A17B-AWQ/boolq \
         --log_samples \
         --track_energy
 "

@@ -2,9 +2,9 @@
 #SBATCH --partition=lrz-hgx-h100-94x4
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --gres=gpu:2
-#SBATCH --time=02:00:00
-#SBATCH --job-name=q35-122b_arc_easy
+#SBATCH --gres=gpu:4
+#SBATCH --time=03:00:00
+#SBATCH --job-name=q35-397b_logiqa2
 #SBATCH --output=%x_%j.out
 
 # Environment
@@ -30,12 +30,12 @@ enroot start \
     -m /dss/dsshome1/09/$USER:/root \
     --root lm_eval_container_v2 bash -c "
     cd $WORK_DIR && \
-    uv run --extra vllm --extra energy lm_eval run \
+    uv run --extra vllm --extra energy --with 'datasets==3.6.0' lm_eval run \
         --model vllm \
-        --model_args pretrained=QuantTrio/Qwen3.5-122B-A10B-AWQ,enforce_eager=True,gdn_prefill_backend=triton,tensor_parallel_size=2,gpu_memory_utilization=0.9,trust_remote_code=True \
-        --tasks arc_easy \
+        --model_args pretrained=QuantTrio/Qwen3.5-397B-A17B-AWQ,enforce_eager=True,gdn_prefill_backend=triton,tensor_parallel_size=4,gpu_memory_utilization=0.9,trust_remote_code=True \
+        --tasks logiqa2 \
         --batch_size 1 \
-        --output_path /dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2/lm-evaluation-harness/results/Qwen3.5-122B-A10B-AWQ/arc_easy \
+        --output_path /dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2/lm-evaluation-harness/results/Qwen3.5-397B-A17B-AWQ/logiqa2 \
         --log_samples \
         --track_energy
 "

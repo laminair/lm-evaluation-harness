@@ -37,5 +37,7 @@ enroot start \
     hf download QuantTrio/Qwen3.5-35B-A3B-AWQ && \
     echo '=== Downloading QuantTrio/Qwen3.5-122B-A10B-AWQ ===' && \
     hf download QuantTrio/Qwen3.5-122B-A10B-AWQ && \
+    echo '=== Downloading QuantTrio/Qwen3.5-397B-A17B-AWQ ===' && \
+    hf download QuantTrio/Qwen3.5-397B-A17B-AWQ && \
     echo '=== All model downloads complete ==='
 "

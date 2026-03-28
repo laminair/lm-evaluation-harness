@@ -51,13 +51,14 @@ enroot create --name messplus_v2 "\$IMAGE" || true
 
 # Run evaluation in enroot container with mounts
 enroot start \\
+    -e HF_HOME=/dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2/.cache/hf \\
     -m /dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2:/dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2 \\
     -m /dss/dsshome1/09/\$USER:/root \\
     --root messplus_v2 bash -c "
     cd \$WORK_DIR && \\
     uv run --extra vllm --extra energy lm_eval \\
         --model vllm \\
-        --model_args pretrained=${model_path},dtype=float16,gpu_memory_utilization=0.9,trust_remote_code=True \\
+        --model_args pretrained=${model_path},enforce_eager=True,dtype=float16,gpu_memory_utilization=0.9,trust_remote_code=True \\
         --tasks ${tasks} \\
         --batch_size 1 \\
         --output_path ${output_dir} \\

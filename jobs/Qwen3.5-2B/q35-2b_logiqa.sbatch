@@ -3,8 +3,8 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --gres=gpu:1
-#SBATCH --time=01:30:00
-#SBATCH --job-name=q35-9b_g1
+#SBATCH --time=02:00:00
+#SBATCH --job-name=q35-2b_logiqa
 #SBATCH --output=%x_%j.out
 
 # Environment
@@ -18,24 +18,24 @@ export WANDB_API_KEY=$(grep -A1 "machine api.wandb.ai" /dss/dsshome1/09/$USER/.n
 
 # Paths
 WORK_DIR=/dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2/lm-evaluation-harness
-IMAGE=/dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2/mess-plus-v2/messplus_v2.sqsh
+IMAGE=/dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2/lm-evaluation-harness/lm_eval_container_v2.sqsh
 
 # Create enroot container from squashfs image (|| true handles re-import)
-enroot create --name messplus_v2 "$IMAGE" || true
+enroot create --name lm_eval_container_v2 "$IMAGE" || true
 
 # Run evaluation in enroot container with mounts
 enroot start \
     -e HF_HOME=/dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2/.cache/hf \
     -m /dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2:/dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2 \
     -m /dss/dsshome1/09/$USER:/root \
-    --root messplus_v2 bash -c "
+    --root lm_eval_container_v2 bash -c "
     cd $WORK_DIR && \
-    uv run --extra vllm --extra energy lm_eval run \
+    uv run --extra vllm --extra energy --with 'datasets==3.6.0' lm_eval run \
         --model vllm \
-        --model_args pretrained=QuantTrio/Qwen3.5-9B-AWQ,enforce_eager=True,gdn_prefill_backend=triton,track_energy=true,approx_instant_energy=true,dtype=float16,gpu_memory_utilization=0.9,trust_remote_code=True \
-        --tasks arc_challenge,logiqa \
+        --model_args pretrained=Qwen/Qwen3.5-2B,enforce_eager=True,gdn_prefill_backend=triton,track_energy=true,approx_instant_energy=true,dtype=float16,gpu_memory_utilization=0.9,trust_remote_code=True \
+        --tasks logiqa \
         --batch_size 1 \
-        --output_path /dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2/lm-evaluation-harness/results/Qwen3.5-9B-AWQ/group_a \
+        --output_path /dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2/lm-evaluation-harness/results/Qwen3.5-2B/logiqa \
         --log_samples \
         --track_energy
 "

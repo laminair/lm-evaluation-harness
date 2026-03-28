@@ -4,7 +4,7 @@
 #SBATCH --ntasks=1
 #SBATCH --gres=gpu:1
 #SBATCH --time=02:00:00
-#SBATCH --job-name=q35-35b_social_iqa
+#SBATCH --job-name=q35-2b_arc_easy
 #SBATCH --output=%x_%j.out
 
 # Environment
@@ -30,12 +30,12 @@ enroot start \
     -m /dss/dsshome1/09/$USER:/root \
     --root lm_eval_container_v2 bash -c "
     cd $WORK_DIR && \
-    uv run --extra vllm --extra energy --with 'datasets==3.6.0' lm_eval run \
+    uv run --extra vllm --extra energy lm_eval run \
         --model vllm \
-        --model_args pretrained=QuantTrio/Qwen3.5-35B-A3B-AWQ,enforce_eager=True,gdn_prefill_backend=triton,track_energy=true,approx_instant_energy=true,dtype=float16,gpu_memory_utilization=0.9,trust_remote_code=True \
-        --tasks social_iqa \
+        --model_args pretrained=Qwen/Qwen3.5-2B,enforce_eager=True,gdn_prefill_backend=triton,track_energy=true,approx_instant_energy=true,dtype=float16,gpu_memory_utilization=0.9,trust_remote_code=True \
+        --tasks arc_easy \
         --batch_size 1 \
-        --output_path /dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2/lm-evaluation-harness/results/Qwen3.5-35B-A3B-AWQ/social_iqa \
+        --output_path /dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2/lm-evaluation-harness/results/Qwen3.5-2B/arc_easy \
         --log_samples \
         --track_energy
 "

@@ -2,7 +2,7 @@
 #SBATCH --partition=lrz-hgx-h100-94x4
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --gpus=1
+#SBATCH --gres=gpu:1
 #SBATCH --time=02:00:00
 #SBATCH --job-name=q35-2b_g2
 #SBATCH --output=%x_%j.out

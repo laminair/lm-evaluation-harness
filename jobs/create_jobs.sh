@@ -27,7 +27,7 @@ create_sbatch() {
 #SBATCH --partition=lrz-hgx-h100-94x4
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --gpus=1
+#SBATCH --gres=gpu:1
 #SBATCH --time=${time}
 #SBATCH --job-name=${job_name}
 #SBATCH --output=%x_%j.out

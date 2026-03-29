@@ -3,7 +3,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --gres=gpu:1
-#SBATCH --time=01:40:00
+#SBATCH --time=01:00:00
 #SBATCH --job-name=download_models
 #SBATCH --output=%x_%j.out
 
@@ -39,5 +39,15 @@ enroot start \
     hf download QuantTrio/Qwen3.5-122B-A10B-AWQ && \
     echo '=== Downloading QuantTrio/Qwen3.5-397B-A17B-AWQ ===' && \
     hf download QuantTrio/Qwen3.5-397B-A17B-AWQ && \
+    echo '=== Downloading meta-llama/Llama-3.2-1B-Instruct ===' && \
+    hf download meta-llama/Llama-3.2-1B-Instruct && \
+    echo '=== Downloading casperhansen/llama-3-8b-instruct-awq ===' && \
+    hf download casperhansen/llama-3-8b-instruct-awq && \
+    echo '=== Downloading casperhansen/llama-3.3-70b-instruct-awq ===' && \
+    hf download casperhansen/llama-3.3-70b-instruct-awq && \
+    echo '=== Downloading kishizaki-sci/Llama-4-Scout-17B-16E-Instruct-AWQ ===' && \
+    hf download kishizaki-sci/Llama-4-Scout-17B-16E-Instruct-AWQ && \
+    echo '=== Downloading kishizaki-sci/Llama-4-Maverick-17B-128E-Instruct-AWQ ===' && \
+    hf download kishizaki-sci/Llama-4-Maverick-17B-128E-Instruct-AWQ && \
     echo '=== All model downloads complete ==='
 "

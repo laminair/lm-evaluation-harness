@@ -60,7 +60,7 @@ collect_pending_jobs() {
     local phase="$1"
     PENDING_JOBS=()
     
-    for model_dir in "Qwen3.5-2B" "Qwen3.5-9B-AWQ" "Qwen3.5-27B-AWQ" "Qwen3.5-35B-A3B-AWQ"; do
+    for model_dir in "Qwen3.5-2B" "Qwen3.5-9B-AWQ" "Qwen3.5-27B-AWQ" "Qwen3.5-35B-A3B-AWQ" "Qwen3.5-122B-A10B-AWQ" "Qwen3.5-397B-A17B-AWQ" "Llama-3.2-1B-Instruct" "Llama-3-8B-Instruct-AWQ" "Llama-3.3-70B-Instruct-AWQ" "Llama-4-Scout-17B-16E-Instruct-AWQ" "Llama-4-Maverick-17B-128E-Instruct-AWQ"; do
         model_path="$JOBS_DIR/$model_dir"
         
         if [ -d "$model_path" ]; then
@@ -229,14 +229,21 @@ generate_summary() {
             echo "  None"
         fi
         echo ""
-        echo "========================================"
-        echo "OUTPUT LOCATIONS:"
-        echo "----------------------------------------"
-        echo "  Qwen3.5-2B:           $JOBS_DIR/../results/Qwen3.5-2B/"
-        echo "  Qwen3.5-9B-AWQ:       $JOBS_DIR/../results/Qwen3.5-9B-AWQ/"
-        echo "  Qwen3.5-27B-AWQ:      $JOBS_DIR/../results/Qwen3.5-27B-AWQ/"
-        echo "  Qwen3.5-35B-A3B-AWQ:  $JOBS_DIR/../results/Qwen3.5-35B-A3B-AWQ/"
-        echo "========================================"
+echo "========================================"
+    echo "OUTPUT LOCATIONS:"
+    echo "----------------------------------------"
+    echo "  Qwen3.5-2B:                     $JOBS_DIR/../results/Qwen3.5-2B/"
+    echo "  Qwen3.5-9B-AWQ:                 $JOBS_DIR/../results/Qwen3.5-9B-AWQ/"
+    echo "  Qwen3.5-27B-AWQ:                $JOBS_DIR/../results/Qwen3.5-27B-AWQ/"
+    echo "  Qwen3.5-35B-A3B-AWQ:            $JOBS_DIR/../results/Qwen3.5-35B-A3B-AWQ/"
+    echo "  Qwen3.5-122B-A10B-AWQ:          $JOBS_DIR/../results/Qwen3.5-122B-A10B-AWQ/"
+    echo "  Qwen3.5-397B-A17B-AWQ:         $JOBS_DIR/../results/Qwen3.5-397B-A17B-AWQ/"
+    echo "  Llama-3.2-1B-Instruct:          $JOBS_DIR/../results/Llama-3.2-1B-Instruct/"
+    echo "  Llama-3-8B-Instruct-AWQ:        $JOBS_DIR/../results/Llama-3-8B-Instruct-AWQ/"
+    echo "  Llama-3.3-70B-Instruct-AWQ:     $JOBS_DIR/../results/Llama-3.3-70B-Instruct-AWQ/"
+    echo "  Llama-4-Scout-17B-16E-AWQ:      $JOBS_DIR/../results/Llama-4-Scout-17B-16E-Instruct-AWQ/"
+    echo "  Llama-4-Maverick-17B-128E-AWQ:  $JOBS_DIR/../results/Llama-4-Maverick-17B-128E-Instruct-AWQ/"
+    echo "========================================"
     } > "$SUMMARY_FILE"
     
     log "Summary saved to: $SUMMARY_FILE"

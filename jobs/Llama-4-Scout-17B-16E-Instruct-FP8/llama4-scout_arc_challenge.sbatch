@@ -2,9 +2,9 @@
 #SBATCH --partition=lrz-hgx-h100-94x4
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --gres=gpu:4
-#SBATCH --time=03:00:00
-#SBATCH --job-name=llama4-mav_logiqa
+#SBATCH --gres=gpu:2
+#SBATCH --time=02:00:00
+#SBATCH --job-name=llama4-scout_arc_challenge
 #SBATCH --output=%x_%j.out
 
 # Environment
@@ -30,12 +30,12 @@ enroot start \
     -m /dss/dsshome1/09/$USER:/root \
     --root lm_eval_container_v2 bash -c "
     cd $WORK_DIR && \
-    uv run --extra vllm --extra energy --with 'datasets==3.6.0' lm_eval run \
+    uv run --extra vllm --extra energy lm_eval run \
         --model vllm \
-        --model_args pretrained=kishizaki-sci/Llama-4-Maverick-17B-128E-Instruct-AWQ,enforce_eager=True,gdn_prefill_backend=triton,tensor_parallel_size=4,gpu_memory_utilization=0.9,trust_remote_code=True \
-        --tasks logiqa \
+        --model_args pretrained=nvidia/Llama-4-Scout-17B-16E-Instruct-FP8,enforce_eager=True,gdn_prefill_backend=triton,tensor_parallel_size=2,add_bos_token=True,track_energy=true,approx_instant_energy=true,gpu_memory_utilization=0.9,trust_remote_code=True \
+        --tasks arc_challenge \
         --batch_size 1 \
-        --output_path /dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2/lm-evaluation-harness/results/Llama-4-Maverick-17B-128E-Instruct-AWQ/logiqa \
+        --output_path /dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2/lm-evaluation-harness/results/Llama-4-Scout-17B-16E-Instruct-FP8/arc_challenge \
         --log_samples \
         --track_energy
 "

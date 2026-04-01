@@ -2,9 +2,9 @@
 #SBATCH --partition=lrz-hgx-h100-94x4
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --gres=gpu:1
-#SBATCH --time=01:00:00
-#SBATCH --job-name=llama4-scout_winogrande
+#SBATCH --gres=gpu:4
+#SBATCH --time=02:00:00
+#SBATCH --job-name=llama4-mav_boolq
 #SBATCH --output=%x_%j.out
 
 # Environment
@@ -32,10 +32,10 @@ enroot start \
     cd $WORK_DIR && \
     uv run --extra vllm --extra energy lm_eval run \
         --model vllm \
-        --model_args pretrained=kishizaki-sci/Llama-4-Scout-17B-16E-Instruct-AWQ,enforce_eager=True,gdn_prefill_backend=triton,track_energy=true,approx_instant_energy=true,dtype=float16,gpu_memory_utilization=0.9,trust_remote_code=True \
-        --tasks winogrande \
+        --model_args pretrained=nvidia/Llama-4-Maverick-17B-128E-Instruct-FP8,enforce_eager=True,gdn_prefill_backend=triton,tensor_parallel_size=4,add_bos_token=True,track_energy=true,approx_instant_energy=true,gpu_memory_utilization=0.9,trust_remote_code=True \
+        --tasks boolq \
         --batch_size 1 \
-        --output_path /dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2/lm-evaluation-harness/results/Llama-4-Scout-17B-16E-Instruct-AWQ/winogrande \
+        --output_path /dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2/lm-evaluation-harness/results/Llama-4-Maverick-17B-128E-Instruct-FP8/boolq \
         --log_samples \
         --track_energy
 "

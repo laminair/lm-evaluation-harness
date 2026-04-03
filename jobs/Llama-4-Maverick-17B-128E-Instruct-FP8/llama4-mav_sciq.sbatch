@@ -32,7 +32,7 @@ enroot start \
     cd $WORK_DIR && \
     uv run --extra vllm --extra energy lm_eval run \
         --model vllm \
-        --model_args pretrained=nvidia/Llama-4-Maverick-17B-128E-Instruct-FP8,enforce_eager=True,gdn_prefill_backend=triton,tensor_parallel_size=4,add_bos_token=True,track_energy=true,approx_instant_energy=true,gpu_memory_utilization=0.9,trust_remote_code=True \
+        --model_args pretrained=nvidia/Llama-4-Maverick-17B-128E-Instruct-FP8,enforce_eager=True,gdn_prefill_backend=triton,tensor_parallel_size=4,add_bos_token=True,max_model_len=16384,track_energy=true,approx_instant_energy=true,gpu_memory_utilization=0.9,trust_remote_code=True \
         --tasks sciq \
         --batch_size 1 \
         --output_path /dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2/lm-evaluation-harness/results/Llama-4-Maverick-17B-128E-Instruct-FP8/sciq \

@@ -60,7 +60,7 @@ collect_pending_jobs() {
     local phase="$1"
     PENDING_JOBS=()
     
-    for model_dir in "Qwen3.5-397B-A17B-AWQ"; do
+    for model_dir in "Llama-4-Scout-17B-16E-Instruct-FP8" "Llama-4-Maverick-17B-128E-Instruct-FP8"; do
         model_path="$JOBS_DIR/$model_dir"
         
         if [ -d "$model_path" ]; then

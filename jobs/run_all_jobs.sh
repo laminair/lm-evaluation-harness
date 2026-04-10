@@ -60,7 +60,7 @@ collect_pending_jobs() {
     local phase="$1"
     PENDING_JOBS=()
     
-    for model_dir in "Llama-4-Scout-17B-16E-Instruct-FP8" "Llama-4-Maverick-17B-128E-Instruct-FP8"; do
+    for model_dir in "Qwen3.5-2B" "Qwen3.5-9B-AWQ" "Qwen3.5-27B-AWQ" "Qwen3.5-35B-A3B-AWQ" "Qwen3.5-122B-A10B-AWQ" "Qwen3.5-397B-A17B-AWQ" "Llama-3.2-1B-Instruct" "Llama-3-8B-Instruct-AWQ" "Llama-3.3-70B-Instruct-AWQ"; do
         model_path="$JOBS_DIR/$model_dir"
         
         if [ -d "$model_path" ]; then
@@ -69,6 +69,9 @@ collect_pending_jobs() {
                     local job_name
                     job_name=$(basename "$sbatch_file" .sbatch)
                     local task_name="${job_name#q35-*_}"
+                    task_name="${task_name#llama32-*_}"
+                    task_name="${task_name#llama3-*_}"
+                    task_name="${task_name#llama33-*_}"
                     
                     local should_add=false
                     if [ "$phase" = "v4" ] && ! needs_v36 "$task_name"; then
@@ -241,8 +244,6 @@ echo "========================================"
     echo "  Llama-3.2-1B-Instruct:          $JOBS_DIR/../results/Llama-3.2-1B-Instruct/"
     echo "  Llama-3-8B-Instruct-AWQ:        $JOBS_DIR/../results/Llama-3-8B-Instruct-AWQ/"
     echo "  Llama-3.3-70B-Instruct-AWQ:     $JOBS_DIR/../results/Llama-3.3-70B-Instruct-AWQ/"
-    echo "  Llama-4-Scout-17B-16E-AWQ:      $JOBS_DIR/../results/Llama-4-Scout-17B-16E-Instruct-AWQ/"
-    echo "  Llama-4-Maverick-17B-128E-AWQ:  $JOBS_DIR/../results/Llama-4-Maverick-17B-128E-Instruct-AWQ/"
     echo "========================================"
     } > "$SUMMARY_FILE"
     

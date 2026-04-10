@@ -261,30 +261,6 @@ create_sbatch "Llama-3.3-70B-Instruct-AWQ" "casperhansen/llama-3.3-70b-instruct-
 create_sbatch "Llama-3.3-70B-Instruct-AWQ" "casperhansen/llama-3.3-70b-instruct-awq" "winogrande" "01:00:00" "llama33-70b_winogrande" "$RESULTS_DIR/Llama-3.3-70B-Instruct-AWQ/winogrande"
 
 echo ""
-echo "=== Llama-4-Scout-17B-16E-Instruct-AWQ (1 GPU) ==="
-create_sbatch "Llama-4-Scout-17B-16E-Instruct-AWQ" "kishizaki-sci/Llama-4-Scout-17B-16E-Instruct-AWQ" "arc_challenge" "02:00:00" "llama4-scout_arc_challenge" "$RESULTS_DIR/Llama-4-Scout-17B-16E-Instruct-AWQ/arc_challenge"
-create_sbatch "Llama-4-Scout-17B-16E-Instruct-AWQ" "kishizaki-sci/Llama-4-Scout-17B-16E-Instruct-AWQ" "arc_easy" "02:00:00" "llama4-scout_arc_easy" "$RESULTS_DIR/Llama-4-Scout-17B-16E-Instruct-AWQ/arc_easy"
-create_sbatch "Llama-4-Scout-17B-16E-Instruct-AWQ" "kishizaki-sci/Llama-4-Scout-17B-16E-Instruct-AWQ" "boolq" "01:00:00" "llama4-scout_boolq" "$RESULTS_DIR/Llama-4-Scout-17B-16E-Instruct-AWQ/boolq"
-create_sbatch "Llama-4-Scout-17B-16E-Instruct-AWQ" "kishizaki-sci/Llama-4-Scout-17B-16E-Instruct-AWQ" "logiqa" "02:00:00" "llama4-scout_logiqa" "$RESULTS_DIR/Llama-4-Scout-17B-16E-Instruct-AWQ/logiqa"
-create_sbatch "Llama-4-Scout-17B-16E-Instruct-AWQ" "kishizaki-sci/Llama-4-Scout-17B-16E-Instruct-AWQ" "logiqa2" "02:00:00" "llama4-scout_logiqa2" "$RESULTS_DIR/Llama-4-Scout-17B-16E-Instruct-AWQ/logiqa2"
-create_sbatch "Llama-4-Scout-17B-16E-Instruct-AWQ" "kishizaki-sci/Llama-4-Scout-17B-16E-Instruct-AWQ" "piqa" "01:00:00" "llama4-scout_piqa" "$RESULTS_DIR/Llama-4-Scout-17B-16E-Instruct-AWQ/piqa"
-create_sbatch "Llama-4-Scout-17B-16E-Instruct-AWQ" "kishizaki-sci/Llama-4-Scout-17B-16E-Instruct-AWQ" "sciq" "01:00:00" "llama4-scout_sciq" "$RESULTS_DIR/Llama-4-Scout-17B-16E-Instruct-AWQ/sciq"
-create_sbatch "Llama-4-Scout-17B-16E-Instruct-AWQ" "kishizaki-sci/Llama-4-Scout-17B-16E-Instruct-AWQ" "social_iqa" "02:00:00" "llama4-scout_social_iqa" "$RESULTS_DIR/Llama-4-Scout-17B-16E-Instruct-AWQ/social_iqa"
-create_sbatch "Llama-4-Scout-17B-16E-Instruct-AWQ" "kishizaki-sci/Llama-4-Scout-17B-16E-Instruct-AWQ" "winogrande" "01:00:00" "llama4-scout_winogrande" "$RESULTS_DIR/Llama-4-Scout-17B-16E-Instruct-AWQ/winogrande"
-
-echo ""
-echo "=== Llama-4-Maverick-17B-128E-Instruct-AWQ (4 GPUs) ==="
-create_sbatch_multi_gpu "Llama-4-Maverick-17B-128E-Instruct-AWQ" "kishizaki-sci/Llama-4-Maverick-17B-128E-Instruct-AWQ" "arc_challenge" "03:00:00" "llama4-mav_arc_challenge" "$RESULTS_DIR/Llama-4-Maverick-17B-128E-Instruct-AWQ/arc_challenge" 4 4
-create_sbatch_multi_gpu "Llama-4-Maverick-17B-128E-Instruct-AWQ" "kishizaki-sci/Llama-4-Maverick-17B-128E-Instruct-AWQ" "arc_easy" "03:00:00" "llama4-mav_arc_easy" "$RESULTS_DIR/Llama-4-Maverick-17B-128E-Instruct-AWQ/arc_easy" 4 4
-create_sbatch_multi_gpu "Llama-4-Maverick-17B-128E-Instruct-AWQ" "kishizaki-sci/Llama-4-Maverick-17B-128E-Instruct-AWQ" "boolq" "02:00:00" "llama4-mav_boolq" "$RESULTS_DIR/Llama-4-Maverick-17B-128E-Instruct-AWQ/boolq" 4 4
-create_sbatch_multi_gpu "Llama-4-Maverick-17B-128E-Instruct-AWQ" "kishizaki-sci/Llama-4-Maverick-17B-128E-Instruct-AWQ" "logiqa" "03:00:00" "llama4-mav_logiqa" "$RESULTS_DIR/Llama-4-Maverick-17B-128E-Instruct-AWQ/logiqa" 4 4
-create_sbatch_multi_gpu "Llama-4-Maverick-17B-128E-Instruct-AWQ" "kishizaki-sci/Llama-4-Maverick-17B-128E-Instruct-AWQ" "logiqa2" "03:00:00" "llama4-mav_logiqa2" "$RESULTS_DIR/Llama-4-Maverick-17B-128E-Instruct-AWQ/logiqa2" 4 4
-create_sbatch_multi_gpu "Llama-4-Maverick-17B-128E-Instruct-AWQ" "kishizaki-sci/Llama-4-Maverick-17B-128E-Instruct-AWQ" "piqa" "02:00:00" "llama4-mav_piqa" "$RESULTS_DIR/Llama-4-Maverick-17B-128E-Instruct-AWQ/piqa" 4 4
-create_sbatch_multi_gpu "Llama-4-Maverick-17B-128E-Instruct-AWQ" "kishizaki-sci/Llama-4-Maverick-17B-128E-Instruct-AWQ" "sciq" "02:00:00" "llama4-mav_sciq" "$RESULTS_DIR/Llama-4-Maverick-17B-128E-Instruct-AWQ/sciq" 4 4
-create_sbatch_multi_gpu "Llama-4-Maverick-17B-128E-Instruct-AWQ" "kishizaki-sci/Llama-4-Maverick-17B-128E-Instruct-AWQ" "social_iqa" "03:00:00" "llama4-mav_social_iqa" "$RESULTS_DIR/Llama-4-Maverick-17B-128E-Instruct-AWQ/social_iqa" 4 4
-create_sbatch_multi_gpu "Llama-4-Maverick-17B-128E-Instruct-AWQ" "kishizaki-sci/Llama-4-Maverick-17B-128E-Instruct-AWQ" "winogrande" "02:00:00" "llama4-mav_winogrande" "$RESULTS_DIR/Llama-4-Maverick-17B-128E-Instruct-AWQ/winogrande" 4 4
-
-echo ""
 echo "=========================================="
 echo "Done! Created all sbatch files."
 echo ""
@@ -298,9 +274,7 @@ echo "  Qwen3.5-397B-A17B-AWQ:          9 jobs (4 GPUs each)"
 echo "  Llama-3.2-1B-Instruct:          9 jobs (1 GPU each)"
 echo "  Llama-3-8B-Instruct-AWQ:        9 jobs (1 GPU each)"
 echo "  Llama-3.3-70B-Instruct-AWQ:     9 jobs (1 GPU each)"
-echo "  Llama-4-Scout-17B-16E-AWQ:      9 jobs (1 GPU each)"
-echo "  Llama-4-Maverick-17B-128E-AWQ:  9 jobs (4 GPUs each)"
-echo "  Total:                          99 jobs"
+echo "  Total:                          81 jobs"
 echo ""
 echo "Tasks requiring datasets==3.6.0: logiqa, logiqa2, social_iqa"
 echo "Tasks using datasets>=4.0: arc_challenge, arc_easy, boolq, piqa, sciq, winogrande"

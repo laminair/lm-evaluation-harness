@@ -797,15 +797,16 @@ def evaluate(
                     )
                     if log_samples:
                         target = task.doc_to_target(doc)
+                        filtered_resps_for_sample = [
+                            req.filtered_resps[filter_key] for req in requests
+                        ]
                         example = {
                             "doc_id": doc_id_true,
                             "doc": doc,
                             "target": target,
                             "arguments": [req.args for req in requests],
                             "resps": [req.resps for req in requests],
-                            "filtered_resps": [
-                                req.filtered_resps[filter_key] for req in requests
-                            ],
+                            "filtered_resps": filtered_resps_for_sample,
                             "filter": filter_key,
                             "metrics": list(metrics.keys()),
                             "doc_hash": hash_string(
@@ -857,6 +858,31 @@ def evaluate(
                                 example["throughput"] = avg_throughput
 
                         example.update(metrics)
+
+                        # Compute model_response
+                        if task.OUTPUT_TYPE == "multiple_choice":
+                            num_choices = len(filtered_resps_for_sample)
+                            num_repeats = (
+                                len(filtered_resps_for_sample[0])
+                                if filtered_resps_for_sample
+                                else 0
+                            )
+                            chosen = []
+                            for repeat_idx in range(num_repeats):
+                                log_probs = [
+                                    filtered_resps_for_sample[choice_idx][repeat_idx][0]
+                                    for choice_idx in range(num_choices)
+                                ]
+                                chosen_idx = int(np.argmax(log_probs))
+                                chosen.append(doc["choices"][chosen_idx])
+                            example["model_response"] = chosen
+                        elif task.OUTPUT_TYPE == "generate_until":
+                            model_response = {}
+                            for req_idx, req in enumerate(requests):
+                                key = f"gen_args_{req_idx}"
+                                model_response[key] = filtered_resps_for_sample[req_idx]
+                            example["model_response"] = model_response
+
                         acc["logged_samples"].append(example)
                     for metric, value in metrics.items():
                         acc["raw_metrics"][(metric, filter_key)].append(value)

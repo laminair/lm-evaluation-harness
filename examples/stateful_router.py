@@ -158,6 +158,8 @@ class StatefulRouter:
         self.weights: dict[str, float] = dict(router_cfg.get("weights", {}))
         self.learning_rate: float = router_cfg.get("learning_rate", 0.01)
         self.exploration_rate: float = router_cfg.get("exploration_rate", 0.15)
+        self._max_train_samples: int | None = router_cfg.get("max_train_samples", None)
+        self._train_sample_count: int = 0
 
         self._normalize_weights()
 
@@ -332,6 +334,13 @@ class StatefulRouter:
         outcome_record["weights_after"] = dict(self.weights)
 
         if event.correct:
+            if (
+                self._max_train_samples is not None
+                and self._train_sample_count >= self._max_train_samples
+            ):
+                self.outcomes.append(outcome_record)
+                return
+
             target_idx = self.model_id_to_idx[event.model]
 
             features = self._extract_features(
@@ -351,6 +360,7 @@ class StatefulRouter:
 
             (loss / self._accum_steps).backward()
             self._step_count += 1
+            self._train_sample_count += 1
 
             if self._step_count % self._accum_steps == 0:
                 self.optimizer.step()
@@ -410,6 +420,8 @@ class StatefulRouter:
             "weights": dict(self.weights),
             "learning_rate": self.learning_rate,
             "exploration_rate": self.exploration_rate,
+            "max_train_samples": self._max_train_samples,
+            "train_sample_count": self._train_sample_count,
             "classifier_state_dict": self.classifier.state_dict(),
             "optimizer_state_dict": self.optimizer.state_dict(),
             "outcomes": list(self.outcomes),
@@ -426,6 +438,10 @@ class StatefulRouter:
         self.weights = dict(state.get("weights", {}))
         self.learning_rate = state.get("learning_rate", self.learning_rate)
         self.exploration_rate = state.get("exploration_rate", self.exploration_rate)
+        self._max_train_samples = state.get(
+            "max_train_samples", self._max_train_samples
+        )
+        self._train_sample_count = state.get("train_sample_count", 0)
         self.outcomes = list(state.get("outcomes", []))
         self._step_count = state.get("step_count", 0)
 

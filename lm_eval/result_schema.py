@@ -207,3 +207,12 @@ class SampleResult(TypedDict, extra_items=float):
 
     target_hash: str
     """SHA hash of the target string."""
+
+    model_response: NotRequired[dict[str, list[str]] | list[str]]
+    """Model's predicted answer(s).
+
+    For multiple-choice tasks: ``list[str]`` where each element is the text of
+    the chosen option for each repeat (e.g. ``["Planetary days will become shorter."]``).
+
+    For generation tasks: ``dict[str, list[str]]`` mapping request keys (e.g.
+    ``"gen_args_0"``) to lists of generated strings, one per repeat."""

@@ -38,6 +38,12 @@ router:
   learning_rate: 0.01
   exploration_rate: 0.15
 
+  # Maximum number of samples to use for training the router classifier.
+  # Set to null (default) to use all samples, or an integer to limit training samples.
+  # Training only happens on correct outcomes, so this limits how many correct
+  # outcomes are used for gradient updates.
+  max_train_samples: null
+
   # Classifier configuration
   classifier:
     input_dim: 768

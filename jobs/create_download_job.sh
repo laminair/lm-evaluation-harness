@@ -54,10 +54,6 @@ enroot start \\
     hf download casperhansen/llama-3-8b-instruct-awq && \\
     echo '=== Downloading casperhansen/llama-3.3-70b-instruct-awq ===' && \\
     hf download casperhansen/llama-3.3-70b-instruct-awq && \\
-    echo '=== Downloading nvidia/Llama-4-Scout-17B-16E-Instruct-FP8 ===' && \\
-    hf download nvidia/Llama-4-Scout-17B-16E-Instruct-FP8 && \\
-    echo '=== Downloading nvidia/Llama-4-Maverick-17B-128E-Instruct-FP8 ===' && \\
-    hf download nvidia/Llama-4-Maverick-17B-128E-Instruct-FP8 && \\
     echo '=== All model downloads complete ==='
 "
 EOF

@@ -861,18 +861,15 @@ def evaluate(
 
                         # Compute model_response
                         if task.OUTPUT_TYPE == "multiple_choice":
-                            num_choices = len(filtered_resps_for_sample)
-                            num_repeats = (
-                                len(filtered_resps_for_sample[0])
-                                if filtered_resps_for_sample
-                                else 0
-                            )
+                            # req.resps[repeat_idx] = (log_prob, is_greedy) for each repeat
+                            # We need to find argmax across all choices for each repeat
+                            num_repeats = len(requests[0].resps) if requests else 0
                             chosen = []
                             for repeat_idx in range(num_repeats):
-                                log_probs = [
-                                    filtered_resps_for_sample[choice_idx][repeat_idx][0]
-                                    for choice_idx in range(num_choices)
-                                ]
+                                log_probs = []
+                                for req in requests:
+                                    log_prob = req.resps[repeat_idx][0]
+                                    log_probs.append(log_prob)
                                 chosen_idx = int(np.argmax(log_probs))
                                 chosen.append(doc["choices"][chosen_idx])
                             example["model_response"] = chosen

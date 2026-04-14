@@ -6,7 +6,7 @@ dataset_kwargs:
 output_type: multiple_choice
 training_split: train
 validation_split: validation
-test_split: train
+test_split: validation
 doc_to_text: "Q: {{context}} {{question}}\nA:"
 target_delimiter: " "
 doc_to_choice: "{{[answerA, answerB, answerC]}}"

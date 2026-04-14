@@ -547,6 +547,38 @@ def _evaluate_adaptive(
                     "target_hash": hash_string(str(target)),
                 }
                 example.update(primary_metrics)
+
+                # Compute model_response
+                if task.OUTPUT_TYPE == "multiple_choice":
+                    num_repeats = len(requests[0].resps) if requests else 0
+                    chosen = []
+                    all_choices = task.doc_to_choice(doc)
+                    for repeat_idx in range(num_repeats):
+                        log_probs = []
+                        for req in requests:
+                            log_prob = req.resps[repeat_idx][0]
+                            log_probs.append(log_prob)
+                        chosen_idx = int(np.argmax(log_probs))
+                        chosen_text = all_choices[chosen_idx]
+                        if isinstance(doc.get("choices"), dict) and "label" in doc.get(
+                            "choices", {}
+                        ):
+                            label_list = doc["choices"]["label"]
+                            label = label_list[chosen_idx]
+                            chosen.append(f"{label}: {chosen_text}")
+                        else:
+                            chosen.append(chosen_text)
+                    example["model_response"] = chosen
+                elif task.OUTPUT_TYPE == "generate_until":
+                    filtered_resps_for_sample = [
+                        req.filtered_resps[filter_key] for req in requests
+                    ]
+                    model_response = {}
+                    for req_idx, req in enumerate(requests):
+                        key = f"gen_args_{req_idx}"
+                        model_response[key] = filtered_resps_for_sample[req_idx]
+                    example["model_response"] = model_response
+
                 acc["logged_samples"].append(example)
 
             for metric, value in primary_metrics.items():
@@ -865,13 +897,23 @@ def evaluate(
                             # We need to find argmax across all choices for each repeat
                             num_repeats = len(requests[0].resps) if requests else 0
                             chosen = []
+                            all_choices = task.doc_to_choice(doc)
                             for repeat_idx in range(num_repeats):
                                 log_probs = []
                                 for req in requests:
                                     log_prob = req.resps[repeat_idx][0]
                                     log_probs.append(log_prob)
                                 chosen_idx = int(np.argmax(log_probs))
-                                chosen.append(doc["choices"][chosen_idx])
+                                chosen_text = all_choices[chosen_idx]
+                                # Use label:text format for ARC-style choices, text only otherwise
+                                if isinstance(
+                                    doc.get("choices"), dict
+                                ) and "label" in doc.get("choices", {}):
+                                    label_list = doc["choices"]["label"]
+                                    label = label_list[chosen_idx]
+                                    chosen.append(f"{label}: {chosen_text}")
+                                else:
+                                    chosen.append(chosen_text)
                             example["model_response"] = chosen
                         elif task.OUTPUT_TYPE == "generate_until":
                             model_response = {}

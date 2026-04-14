@@ -28,6 +28,7 @@ enroot start \
     -e HF_HOME=/dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2/.cache/hf \
     -m /dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2:/dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2 \
     -m /dss/dsshome1/09/$USER:/root \
+     \
     --root lm_eval_container_v2 bash -c "
     cd $WORK_DIR && \
     uv run --extra vllm --extra energy --with 'datasets==3.6.0' lm_eval run \

@@ -5,7 +5,7 @@ SUMMARY_FILE="${JOBS_DIR}/job_summary_$(date +%Y%m%d_%H%M%S).txt"
 MAX_CONCURRENT=7
 POLL_INTERVAL=120
 
-V36_TASKS="logiqa,logiqa2,social_iqa"
+V36_TASKS="social_iqa"
 
 needs_v36() {
     local task="$1"
@@ -278,7 +278,7 @@ main() {
     echo ""
     echo "=========================================="
     echo "PHASE 2: Tasks using datasets==3.6.0"
-    echo "  Tasks: logiqa, logiqa2, social_iqa"
+    echo "  Tasks: social_iqa"
     echo "=========================================="
     echo ""
     

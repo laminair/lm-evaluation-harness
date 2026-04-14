@@ -123,6 +123,18 @@ def _vllm_mp_worker(
     return None
 
 
+def _make_hashable(d: dict) -> dict:
+    """Convert dict values to hashable types for use as dict keys."""
+    result = {}
+    for k, v in d.items():
+        if isinstance(v, list):
+            v = tuple(v)
+        elif isinstance(v, dict):
+            v = frozenset(v.items())
+        result[k] = v
+    return result
+
+
 @register_model("vllm")
 class VLLM(TemplateLM):
     _DEFAULT_MAX_LENGTH = 2048
@@ -771,9 +783,8 @@ class VLLM(TemplateLM):
                 sampling_params.append(
                     SamplingParams(max_tokens=max_gen_toks, stop=until, **kwargs)
                 )
-                _cache_gen_kwargs.append(
-                    kwargs | {"until": until, "max_gen_toks": max_gen_toks}
-                )
+                # Store ORIGINAL gen_kwargs for cache key (not the modified kwargs)
+                _cache_gen_kwargs.append(gen_kwargs)
 
             # perform batched generation
             cont = self._model_generate(
@@ -797,7 +808,10 @@ class VLLM(TemplateLM):
                     for _context, _gen_kwargs in zip(
                         context, _cache_gen_kwargs, strict=True
                     ):
-                        cache_key = (_context, tuple(_gen_kwargs.items()))
+                        cache_key = (
+                            _context,
+                            tuple(_make_hashable(_gen_kwargs).items()),
+                        )
                         self._request_energy[cache_key] = energy_per_request
 
             # Store latency per request (divided evenly across batch)
@@ -805,7 +819,7 @@ class VLLM(TemplateLM):
                 batch_latency_ms / batch_size if batch_size > 0 else 0.0
             )
             for _context, _gen_kwargs in zip(context, _cache_gen_kwargs, strict=True):
-                cache_key = (_context, tuple(_gen_kwargs.items()))
+                cache_key = (_context, tuple(_make_hashable(_gen_kwargs).items()))
                 self._request_latency[cache_key] = latency_per_request
 
             # Store token usage per request
@@ -814,7 +828,7 @@ class VLLM(TemplateLM):
             for output, _context, _gen_kwargs in zip(
                 cont, context, _cache_gen_kwargs, strict=True
             ):
-                cache_key = (_context, tuple(_gen_kwargs.items()))
+                cache_key = (_context, tuple(_make_hashable(_gen_kwargs).items()))
                 token_usage = TokenUsage()
                 token_usage.prompt_tokens = len(output.prompt_token_ids)
                 token_usage.completion_tokens = len(output.outputs[0].token_ids)
@@ -845,7 +859,7 @@ class VLLM(TemplateLM):
 
         # Attribute energy, latency, throughput, and token usage to instances
         for req in requests:
-            cache_key = (req.args[0], tuple(req.args[1].items()))
+            cache_key = (req.args[0], tuple(_make_hashable(req.args[1]).items()))
             if self._track_energy and cache_key in self._request_energy:
                 req.energy_joules = self._request_energy[cache_key]
             if cache_key in self._request_latency:

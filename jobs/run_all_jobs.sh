@@ -25,6 +25,33 @@ log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"
 }
 
+RESULTS_BASE="/dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2/lm-evaluation-harness/results"
+
+is_job_completed() {
+    local sbatch_file="$1"
+    local job_name
+    job_name=$(basename "$sbatch_file" .sbatch)
+    
+    local model_dir
+    model_dir=$(dirname "$sbatch_file")
+    local model_name
+    model_name=$(basename "$model_dir")
+    
+    local task_name="${job_name#q35-*_}"
+    task_name="${task_name#llama32-*_}"
+    task_name="${task_name#llama3-*_}"
+    task_name="${task_name#llama33-*_}"
+    
+    local results_dir="${RESULTS_BASE}/${model_name}/${task_name}"
+    
+    # Check for any results_*.json file
+    if ls "$results_dir"/results_*.json 1>/dev/null 2>&1; then
+        echo "SKIP (already completed): $model_name/$task_name"
+        return 0
+    fi
+    return 1
+}
+
 get_job_status() {
     local job_id="$1"
     local status
@@ -59,6 +86,7 @@ submit_job() {
 collect_pending_jobs() {
     local phase="$1"
     PENDING_JOBS=()
+    local skipped_count=0
     
     for model_dir in "Qwen3.5-2B" "Qwen3.5-9B-AWQ" "Qwen3.5-27B-AWQ" "Qwen3.5-35B-A3B-AWQ" "Llama-3.2-1B-Instruct" "Llama-3-8B-Instruct-AWQ" "Llama-3.3-70B-Instruct-AWQ" "Qwen3.5-122B-A10B-AWQ" "Qwen3.5-397B-A17B-AWQ"; do
         model_path="$JOBS_DIR/$model_dir"
@@ -81,13 +109,21 @@ collect_pending_jobs() {
                     fi
                     
                     if $should_add; then
-                        PENDING_JOBS+=("$sbatch_file")
-                        ((TOTAL_JOBS++))
+                        if is_job_completed "$sbatch_file"; then
+                            ((skipped_count++))
+                        else
+                            PENDING_JOBS+=("$sbatch_file")
+                            ((TOTAL_JOBS++))
+                        fi
                     fi
                 fi
             done
         fi
     done
+    
+    if [ $skipped_count -gt 0 ]; then
+        log "Skipped $skipped_count already completed jobs"
+    fi
 }
 
 print_status() {

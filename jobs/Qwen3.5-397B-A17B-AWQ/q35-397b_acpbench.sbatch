@@ -3,7 +3,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --gres=gpu:4
-#SBATCH --time=03:00:00
+#SBATCH --time=06:00:00
 #SBATCH --job-name=q35-397b_acpbench
 #SBATCH --output=%x_%j.out
 

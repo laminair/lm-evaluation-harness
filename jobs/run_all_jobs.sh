@@ -2,8 +2,8 @@
 
 JOBS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SUMMARY_FILE="${JOBS_DIR}/job_summary_$(date +%Y%m%d_%H%M%S).txt"
-MAX_CONCURRENT=7
-POLL_INTERVAL=120
+MAX_CONCURRENT=12
+POLL_INTERVAL=90
 
 V36_TASKS="social_iqa"
 
@@ -60,7 +60,7 @@ collect_pending_jobs() {
     local phase="$1"
     PENDING_JOBS=()
     
-    for model_dir in "Qwen3.5-2B" "Qwen3.5-9B-AWQ" "Qwen3.5-27B-AWQ" "Qwen3.5-35B-A3B-AWQ" "Qwen3.5-122B-A10B-AWQ" "Qwen3.5-397B-A17B-AWQ" "Llama-3.2-1B-Instruct" "Llama-3-8B-Instruct-AWQ" "Llama-3.3-70B-Instruct-AWQ"; do
+    for model_dir in "Qwen3.5-2B" "Qwen3.5-9B-AWQ" "Qwen3.5-27B-AWQ" "Qwen3.5-35B-A3B-AWQ" "Llama-3.2-1B-Instruct" "Llama-3-8B-Instruct-AWQ" "Llama-3.3-70B-Instruct-AWQ" "Qwen3.5-122B-A10B-AWQ" "Qwen3.5-397B-A17B-AWQ"; do
         model_path="$JOBS_DIR/$model_dir"
         
         if [ -d "$model_path" ]; then

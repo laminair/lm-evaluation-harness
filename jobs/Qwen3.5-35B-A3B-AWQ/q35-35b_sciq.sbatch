@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --partition=lrz-hgx-h100-94x4
-#SBATCH --exclude=lrz-hgx-h100-002
+#SBATCH --exclude=lrz-hgx-h100-002,lrz-hgx-h100-014
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --gres=gpu:1

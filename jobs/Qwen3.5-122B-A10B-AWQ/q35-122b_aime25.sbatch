@@ -4,7 +4,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --gres=gpu:2
-#SBATCH --time=05:00:00
+#SBATCH --time=20:00:00
 #SBATCH --job-name=q35-122b_aime25
 #SBATCH --output=%x_%j.out
 

@@ -3,7 +3,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --gres=gpu:1
-#SBATCH --time=02:00:00
+#SBATCH --time=01:30:00
 #SBATCH --job-name=llama32-1b_social_iqa
 #SBATCH --output=%x_%j.out
 
@@ -18,10 +18,10 @@ export WANDB_API_KEY=$(grep -A1 "machine api.wandb.ai" /dss/dsshome1/09/$USER/.n
 
 # Paths
 WORK_DIR=/dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2/lm-evaluation-harness
-IMAGE=/dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2/lm-evaluation-harness/lm_eval_container_v2.sqsh
+IMAGE=/dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2/lm-evaluation-harness/lm_eval_container_v3.sqsh
 
 # Create enroot container from squashfs image (|| true handles re-import)
-enroot create --name lm_eval_container_v2 "$IMAGE" || true
+enroot create --name lm_eval_container_v3 "$IMAGE" || true
 
 # Run evaluation in enroot container with mounts
 enroot start \
@@ -29,7 +29,7 @@ enroot start \
     -m /dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2:/dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2 \
     -m /dss/dsshome1/09/$USER:/root \
      \
-    --root lm_eval_container_v2 bash -c "
+    --root lm_eval_container_v3 bash -c "
     cd $WORK_DIR && \
     uv run --extra vllm --extra energy --with 'datasets==3.6.0' lm_eval run \
         --model vllm \

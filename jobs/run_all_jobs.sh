@@ -44,11 +44,23 @@ is_job_completed() {
     
     local results_dir="${RESULTS_BASE}/${model_name}/${task_name}"
     
-    # Check for any results_*.json file
+    # Check for any results_*.json file at expected location
     if ls "$results_dir"/results_*.json 1>/dev/null 2>&1; then
         echo "SKIP (already completed): $model_name/$task_name"
         return 0
     fi
+    
+    # Extract pretrained model path from sbatch file to handle lm-eval's subdirectory naming
+    local model_path
+    model_path=$(grep -oP 'pretrained=\K[^,]+' "$sbatch_file" 2>/dev/null)
+    if [ -n "$model_path" ]; then
+        local model_subdir="${model_path//\//__}"
+        if ls "$results_dir/$model_subdir"/results_*.json 1>/dev/null 2>&1; then
+            echo "SKIP (already completed): $model_name/$task_name"
+            return 0
+        fi
+    fi
+    
     return 1
 }
 

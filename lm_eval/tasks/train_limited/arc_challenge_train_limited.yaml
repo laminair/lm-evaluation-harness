@@ -1,0 +1,3 @@
+include: ../arc/arc_challenge.yaml
+task: arc_challenge_train_limited
+test_split: train

@@ -1,0 +1,3 @@
+include: ../hellaswag/hellaswag.yaml
+task: hellaswag_train_limited
+test_split: train

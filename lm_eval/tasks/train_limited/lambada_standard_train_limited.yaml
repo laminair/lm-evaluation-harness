@@ -1,0 +1,4 @@
+include: ../lambada/lambada_standard.yaml
+task: lambada_standard_train_limited
+training_split: train
+test_split: train

@@ -1,0 +1,3 @@
+include: ../piqa/piqa.yaml
+task: piqa_train_limited
+test_split: train

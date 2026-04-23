@@ -1,0 +1,3 @@
+include: ../arc/arc_easy.yaml
+task: arc_easy_train_limited
+test_split: train

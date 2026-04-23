@@ -1,0 +1,3 @@
+include: ../winogrande/default.yaml
+task: winogrande_train_limited
+test_split: train

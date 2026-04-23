@@ -1,0 +1,3 @@
+include: ../sciq/sciq.yaml
+task: sciq_train_limited
+test_split: train

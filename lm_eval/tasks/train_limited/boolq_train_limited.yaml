@@ -1,0 +1,3 @@
+include: ../super_glue/boolq/default.yaml
+task: boolq_train_limited
+test_split: train

@@ -1,0 +1,3 @@
+include: ../siqa/siqa.yaml
+task: social_iqa_train_limited
+test_split: train

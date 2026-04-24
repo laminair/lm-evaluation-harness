@@ -27,7 +27,7 @@ log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"
 }
 
-RESULTS_BASE="/dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2/lm-evaluation-harness/results"
+RESULTS_BASE="/dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2/lm-evaluation-harness/results_train_data"
 
 is_job_completed() {
     local sbatch_file="$1"
@@ -39,10 +39,15 @@ is_job_completed() {
     local model_name
     model_name=$(basename "$model_dir")
     
-    local task_name="${job_name#q35-*}"
-    task_name="${task_name#llama32-*}"
-    task_name="${task_name#llama3-*}"
-    task_name="${task_name#llama33-*}"
+    # Strip model family prefix (q35-, llama32-, etc.) and size prefix (2b_, 9b_, etc.)
+    local task_name="${job_name#*-}"
+    task_name="${task_name#*_}"
+    
+    # Handle known task name mismatches between job filenames and results directories
+    case "$task_name" in
+        gpqa) task_name="gpqa_main_n_shot" ;;
+        lambada_train_limited) task_name="lambada_standard_train_limited" ;;
+    esac
     
     local results_dir="${RESULTS_BASE}/${model_name}/${task_name}"
     
@@ -110,10 +115,9 @@ collect_pending_jobs() {
                 if [ -f "$sbatch_file" ]; then
                     local job_name
                     job_name=$(basename "$sbatch_file" .sbatch)
-                    local task_name="${job_name#q35-*}"
-                    task_name="${task_name#llama32-*}"
-                    task_name="${task_name#llama3-*}"
-                    task_name="${task_name#llama33-*}"
+                    # Strip model family prefix (q35-, llama32-, etc.) and size prefix (2b_, 9b_, etc.)
+                    local task_name="${job_name#*-}"
+                    task_name="${task_name#*_}"
                     
                     local should_add=false
                     if [ "$phase" = "v4" ] && ! needs_v36 "$task_name"; then
@@ -285,14 +289,14 @@ generate_summary() {
         echo "========================================"
         echo "OUTPUT LOCATIONS:"
         echo "----------------------------------------"
-        echo "  Qwen3.5-2B:                     $JOBS_DIR/../results/Qwen3.5-2B/"
-        echo "  Qwen3.5-9B-AWQ:                 $JOBS_DIR/../results/Qwen3.5-9B-AWQ/"
-        echo "  Qwen3.5-27B-AWQ:                $JOBS_DIR/../results/Qwen3.5-27B-AWQ/"
-        echo "  Qwen3.5-35B-A3B-AWQ:            $JOBS_DIR/../results/Qwen3.5-35B-A3B-AWQ/"
-        echo "  Qwen3.5-122B-A10B-AWQ:          $JOBS_DIR/../results/Qwen3.5-122B-A10B-AWQ/"
-        echo "  Llama-3.2-1B-Instruct:          $JOBS_DIR/../results/Llama-3.2-1B-Instruct/"
-        echo "  Llama-3-8B-Instruct-AWQ:        $JOBS_DIR/../results/Llama-3-8B-Instruct-AWQ/"
-        echo "  Llama-3.3-70B-Instruct-AWQ:     $JOBS_DIR/../results/Llama-3.3-70B-Instruct-AWQ/"
+        echo "  Qwen3.5-2B:                     $JOBS_DIR/../results_train_data/Qwen3.5-2B/"
+        echo "  Qwen3.5-9B-AWQ:                 $JOBS_DIR/../results_train_data/Qwen3.5-9B-AWQ/"
+        echo "  Qwen3.5-27B-AWQ:                $JOBS_DIR/../results_train_data/Qwen3.5-27B-AWQ/"
+        echo "  Qwen3.5-35B-A3B-AWQ:            $JOBS_DIR/../results_train_data/Qwen3.5-35B-A3B-AWQ/"
+        echo "  Qwen3.5-122B-A10B-AWQ:          $JOBS_DIR/../results_train_data/Qwen3.5-122B-A10B-AWQ/"
+        echo "  Llama-3.2-1B-Instruct:          $JOBS_DIR/../results_train_data/Llama-3.2-1B-Instruct/"
+        echo "  Llama-3-8B-Instruct-AWQ:        $JOBS_DIR/../results_train_data/Llama-3-8B-Instruct-AWQ/"
+        echo "  Llama-3.3-70B-Instruct-AWQ:     $JOBS_DIR/../results_train_data/Llama-3.3-70B-Instruct-AWQ/"
         echo "========================================"
     } > "$SUMMARY_FILE"
     

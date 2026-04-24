@@ -37,10 +37,16 @@ is_job_completed() {
     local model_name
     model_name=$(basename "$model_dir")
     
-    local task_name="${job_name#q35-*_}"
-    task_name="${task_name#llama32-*_}"
-    task_name="${task_name#llama3-*_}"
-    task_name="${task_name#llama33-*_}"
+    # Strip model family prefix (q35-, llama32-, etc.) and size prefix (2b_, 9b_, etc.)
+    local task_name="${job_name#*-}"
+    task_name="${task_name#*_}"
+    
+    # Handle known task name mismatches between job filenames and results directories
+    case "$task_name" in
+        acpbench) task_name="acp_bench" ;;
+        gpqa) task_name="gpqa_main_n_shot" ;;
+        lambada) task_name="lambada_standard" ;;
+    esac
     
     local results_dir="${RESULTS_BASE}/${model_name}/${task_name}"
     
@@ -100,7 +106,7 @@ collect_pending_jobs() {
     PENDING_JOBS=()
     local skipped_count=0
     
-    for model_dir in "Qwen3.5-2B" "Qwen3.5-9B-AWQ" "Qwen3.5-27B-AWQ" "Qwen3.5-35B-A3B-AWQ" "Llama-3.2-1B-Instruct" "Llama-3-8B-Instruct-AWQ" "Llama-3.3-70B-Instruct-AWQ" "Qwen3.5-122B-A10B-AWQ"; do
+    for model_dir in "Qwen3.5-2B" "Qwen3.5-9B-AWQ" "Qwen3.5-27B-AWQ" "Qwen3.5-35B-A3B-AWQ" "Qwen3.5-397B-A17B-AWQ" "Llama-3.2-1B-Instruct" "Llama-3-8B-Instruct-AWQ" "Llama-3.3-70B-Instruct-AWQ" "Qwen3.5-122B-A10B-AWQ"; do
         model_path="$JOBS_DIR/$model_dir"
         
         if [ -d "$model_path" ]; then
@@ -108,10 +114,9 @@ collect_pending_jobs() {
                 if [ -f "$sbatch_file" ]; then
                     local job_name
                     job_name=$(basename "$sbatch_file" .sbatch)
-                    local task_name="${job_name#q35-*_}"
-                    task_name="${task_name#llama32-*_}"
-                    task_name="${task_name#llama3-*_}"
-                    task_name="${task_name#llama33-*_}"
+                    # Strip model family prefix (q35-, llama32-, etc.) and size prefix (2b_, 9b_, etc.)
+                    local task_name="${job_name#*-}"
+                    task_name="${task_name#*_}"
                     
                     local should_add=false
                     if [ "$phase" = "v4" ] && ! needs_v36 "$task_name"; then
@@ -280,18 +285,19 @@ generate_summary() {
             echo "  None"
         fi
         echo ""
-echo "========================================"
-    echo "OUTPUT LOCATIONS:"
-    echo "----------------------------------------"
-    echo "  Qwen3.5-2B:                     $JOBS_DIR/../results/Qwen3.5-2B/"
-    echo "  Qwen3.5-9B-AWQ:                 $JOBS_DIR/../results/Qwen3.5-9B-AWQ/"
-    echo "  Qwen3.5-27B-AWQ:                $JOBS_DIR/../results/Qwen3.5-27B-AWQ/"
-    echo "  Qwen3.5-35B-A3B-AWQ:            $JOBS_DIR/../results/Qwen3.5-35B-A3B-AWQ/"
-    echo "  Qwen3.5-122B-A10B-AWQ:          $JOBS_DIR/../results/Qwen3.5-122B-A10B-AWQ/"
-    echo "  Llama-3.2-1B-Instruct:          $JOBS_DIR/../results/Llama-3.2-1B-Instruct/"
-    echo "  Llama-3-8B-Instruct-AWQ:        $JOBS_DIR/../results/Llama-3-8B-Instruct-AWQ/"
-    echo "  Llama-3.3-70B-Instruct-AWQ:     $JOBS_DIR/../results/Llama-3.3-70B-Instruct-AWQ/"
-    echo "========================================"
+        echo "========================================"
+        echo "OUTPUT LOCATIONS:"
+        echo "----------------------------------------"
+        echo "  Qwen3.5-2B:                     $JOBS_DIR/../results/Qwen3.5-2B/"
+        echo "  Qwen3.5-9B-AWQ:                 $JOBS_DIR/../results/Qwen3.5-9B-AWQ/"
+        echo "  Qwen3.5-27B-AWQ:                $JOBS_DIR/../results/Qwen3.5-27B-AWQ/"
+        echo "  Qwen3.5-35B-A3B-AWQ:            $JOBS_DIR/../results/Qwen3.5-35B-A3B-AWQ/"
+        echo "  Qwen3.5-397B-A17B-AWQ:          $JOBS_DIR/../results/Qwen3.5-397B-A17B-AWQ/"
+        echo "  Qwen3.5-122B-A10B-AWQ:          $JOBS_DIR/../results/Qwen3.5-122B-A10B-AWQ/"
+        echo "  Llama-3.2-1B-Instruct:          $JOBS_DIR/../results/Llama-3.2-1B-Instruct/"
+        echo "  Llama-3-8B-Instruct-AWQ:        $JOBS_DIR/../results/Llama-3-8B-Instruct-AWQ/"
+        echo "  Llama-3.3-70B-Instruct-AWQ:     $JOBS_DIR/../results/Llama-3.3-70B-Instruct-AWQ/"
+        echo "========================================"
     } > "$SUMMARY_FILE"
     
     log "Summary saved to: $SUMMARY_FILE"

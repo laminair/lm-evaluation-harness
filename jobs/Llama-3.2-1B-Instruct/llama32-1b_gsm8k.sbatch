@@ -6,6 +6,7 @@
 #SBATCH --time=04:30:00
 #SBATCH --job-name=llama32-1b_gsm8k
 #SBATCH --output=%x_%j.out
+#SBATCH --exclude=lrz-hgx-h100-020
 
 # Environment
 export HF_HOME=/dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2/.cache/hf

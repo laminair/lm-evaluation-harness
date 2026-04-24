@@ -54,6 +54,7 @@ create_sbatch_multi_gpu() {
 #SBATCH --time=${time}
 #SBATCH --job-name=${job_name}
 #SBATCH --output=%x_%j.out
+#SBATCH --exclude=lrz-hgx-h100-020
 
 # Environment
 export HF_HOME=/dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2/.cache/hf
@@ -127,6 +128,7 @@ create_sbatch() {
 #SBATCH --time=${time}
 #SBATCH --job-name=${job_name}
 #SBATCH --output=%x_%j.out
+#SBATCH --exclude=lrz-hgx-h100-020
 
 # Environment
 export HF_HOME=/dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2/.cache/hf
@@ -183,7 +185,6 @@ create_sbatch "Qwen3.5-2B" "Qwen/Qwen3.5-2B" "gsm8k" "08:30:00" "q35-2b_gsm8k" "
 create_sbatch "Qwen3.5-2B" "Qwen/Qwen3.5-2B" "aime25" "09:30:00" "q35-2b_aime25" "$RESULTS_DIR/Qwen3.5-2B/aime25"
 create_sbatch "Qwen3.5-2B" "Qwen/Qwen3.5-2B" "gpqa_main_n_shot" "01:30:00" "q35-2b_gpqa" "$RESULTS_DIR/Qwen3.5-2B/gpqa_main_n_shot"
 create_sbatch "Qwen3.5-2B" "Qwen/Qwen3.5-2B" "lambada_standard" "01:30:00" "q35-2b_lambada" "$RESULTS_DIR/Qwen3.5-2B/lambada_standard"
-create_sbatch "Qwen3.5-2B" "Qwen/Qwen3.5-2B" "wikitext" "04:00:00" "q35-2b_wikitext" "$RESULTS_DIR/Qwen3.5-2B/wikitext"
 # Existing benchmarks
 create_sbatch "Qwen3.5-2B" "Qwen/Qwen3.5-2B" "arc_easy" "01:30:00" "q35-2b_arc_easy" "$RESULTS_DIR/Qwen3.5-2B/arc_easy"
 create_sbatch "Qwen3.5-2B" "Qwen/Qwen3.5-2B" "boolq" "01:30:00" "q35-2b_boolq" "$RESULTS_DIR/Qwen3.5-2B/boolq"
@@ -203,7 +204,6 @@ create_sbatch "Qwen3.5-9B-AWQ" "QuantTrio/Qwen3.5-9B-AWQ" "gsm8k" "08:00:00" "q3
 create_sbatch "Qwen3.5-9B-AWQ" "QuantTrio/Qwen3.5-9B-AWQ" "aime25" "09:30:00" "q35-9b_aime25" "$RESULTS_DIR/Qwen3.5-9B-AWQ/aime25"
 create_sbatch "Qwen3.5-9B-AWQ" "QuantTrio/Qwen3.5-9B-AWQ" "gpqa_main_n_shot" "01:30:00" "q35-9b_gpqa" "$RESULTS_DIR/Qwen3.5-9B-AWQ/gpqa_main_n_shot"
 create_sbatch "Qwen3.5-9B-AWQ" "QuantTrio/Qwen3.5-9B-AWQ" "lambada_standard" "01:30:00" "q35-9b_lambada" "$RESULTS_DIR/Qwen3.5-9B-AWQ/lambada_standard"
-create_sbatch "Qwen3.5-9B-AWQ" "QuantTrio/Qwen3.5-9B-AWQ" "wikitext" "04:00:00" "q35-9b_wikitext" "$RESULTS_DIR/Qwen3.5-9B-AWQ/wikitext"
 create_sbatch "Qwen3.5-9B-AWQ" "QuantTrio/Qwen3.5-9B-AWQ" "arc_easy" "01:30:00" "q35-9b_arc_easy" "$RESULTS_DIR/Qwen3.5-9B-AWQ/arc_easy"
 create_sbatch "Qwen3.5-9B-AWQ" "QuantTrio/Qwen3.5-9B-AWQ" "boolq" "01:30:00" "q35-9b_boolq" "$RESULTS_DIR/Qwen3.5-9B-AWQ/boolq"
 create_sbatch "Qwen3.5-9B-AWQ" "QuantTrio/Qwen3.5-9B-AWQ" "piqa" "01:30:00" "q35-9b_piqa" "$RESULTS_DIR/Qwen3.5-9B-AWQ/piqa"
@@ -222,7 +222,6 @@ create_sbatch "Qwen3.5-27B-AWQ" "QuantTrio/Qwen3.5-27B-AWQ" "gsm8k" "08:00:00" "
 create_sbatch "Qwen3.5-27B-AWQ" "QuantTrio/Qwen3.5-27B-AWQ" "aime25" "09:30:00" "q35-27b_aime25" "$RESULTS_DIR/Qwen3.5-27B-AWQ/aime25"
 create_sbatch "Qwen3.5-27B-AWQ" "QuantTrio/Qwen3.5-27B-AWQ" "gpqa_main_n_shot" "01:30:00" "q35-27b_gpqa" "$RESULTS_DIR/Qwen3.5-27B-AWQ/gpqa_main_n_shot"
 create_sbatch "Qwen3.5-27B-AWQ" "QuantTrio/Qwen3.5-27B-AWQ" "lambada_standard" "02:00:00" "q35-27b_lambada" "$RESULTS_DIR/Qwen3.5-27B-AWQ/lambada_standard"
-create_sbatch "Qwen3.5-27B-AWQ" "QuantTrio/Qwen3.5-27B-AWQ" "wikitext" "04:00:00" "q35-27b_wikitext" "$RESULTS_DIR/Qwen3.5-27B-AWQ/wikitext"
 create_sbatch "Qwen3.5-27B-AWQ" "QuantTrio/Qwen3.5-27B-AWQ" "arc_easy" "02:00:00" "q35-27b_arc_easy" "$RESULTS_DIR/Qwen3.5-27B-AWQ/arc_easy"
 create_sbatch "Qwen3.5-27B-AWQ" "QuantTrio/Qwen3.5-27B-AWQ" "boolq" "01:00:00" "q35-27b_boolq" "$RESULTS_DIR/Qwen3.5-27B-AWQ/boolq"
 create_sbatch "Qwen3.5-27B-AWQ" "QuantTrio/Qwen3.5-27B-AWQ" "piqa" "01:00:00" "q35-27b_piqa" "$RESULTS_DIR/Qwen3.5-27B-AWQ/piqa"
@@ -241,7 +240,6 @@ create_sbatch "Qwen3.5-35B-A3B-AWQ" "QuantTrio/Qwen3.5-35B-A3B-AWQ" "gsm8k" "08:
 create_sbatch "Qwen3.5-35B-A3B-AWQ" "QuantTrio/Qwen3.5-35B-A3B-AWQ" "aime25" "09:30:00" "q35-35b_aime25" "$RESULTS_DIR/Qwen3.5-35B-A3B-AWQ/aime25"
 create_sbatch "Qwen3.5-35B-A3B-AWQ" "QuantTrio/Qwen3.5-35B-A3B-AWQ" "gpqa_main_n_shot" "01:30:00" "q35-35b_gpqa" "$RESULTS_DIR/Qwen3.5-35B-A3B-AWQ/gpqa_main_n_shot"
 create_sbatch "Qwen3.5-35B-A3B-AWQ" "QuantTrio/Qwen3.5-35B-A3B-AWQ" "lambada_standard" "02:00:00" "q35-35b_lambada" "$RESULTS_DIR/Qwen3.5-35B-A3B-AWQ/lambada_standard"
-create_sbatch "Qwen3.5-35B-A3B-AWQ" "QuantTrio/Qwen3.5-35B-A3B-AWQ" "wikitext" "02:00:00" "q35-35b_wikitext" "$RESULTS_DIR/Qwen3.5-35B-A3B-AWQ/wikitext"
 create_sbatch "Qwen3.5-35B-A3B-AWQ" "QuantTrio/Qwen3.5-35B-A3B-AWQ" "arc_easy" "02:00:00" "q35-35b_arc_easy" "$RESULTS_DIR/Qwen3.5-35B-A3B-AWQ/arc_easy"
 create_sbatch "Qwen3.5-35B-A3B-AWQ" "QuantTrio/Qwen3.5-35B-A3B-AWQ" "boolq" "01:00:00" "q35-35b_boolq" "$RESULTS_DIR/Qwen3.5-35B-A3B-AWQ/boolq"
 create_sbatch "Qwen3.5-35B-A3B-AWQ" "QuantTrio/Qwen3.5-35B-A3B-AWQ" "piqa" "01:00:00" "q35-35b_piqa" "$RESULTS_DIR/Qwen3.5-35B-A3B-AWQ/piqa"
@@ -260,7 +258,6 @@ create_sbatch_multi_gpu "Qwen3.5-122B-A10B-AWQ" "QuantTrio/Qwen3.5-122B-A10B-AWQ
 create_sbatch_multi_gpu "Qwen3.5-122B-A10B-AWQ" "QuantTrio/Qwen3.5-122B-A10B-AWQ" "aime25" "09:30:00" "q35-122b_aime25" "$RESULTS_DIR/Qwen3.5-122B-A10B-AWQ/aime25" 2 2
 create_sbatch_multi_gpu "Qwen3.5-122B-A10B-AWQ" "QuantTrio/Qwen3.5-122B-A10B-AWQ" "gpqa_main_n_shot" "01:30:00" "q35-122b_gpqa" "$RESULTS_DIR/Qwen3.5-122B-A10B-AWQ/gpqa_main_n_shot" 2 2
 create_sbatch_multi_gpu "Qwen3.5-122B-A10B-AWQ" "QuantTrio/Qwen3.5-122B-A10B-AWQ" "lambada_standard" "02:00:00" "q35-122b_lambada" "$RESULTS_DIR/Qwen3.5-122B-A10B-AWQ/lambada_standard" 2 2
-create_sbatch_multi_gpu "Qwen3.5-122B-A10B-AWQ" "QuantTrio/Qwen3.5-122B-A10B-AWQ" "wikitext" "02:00:00" "q35-122b_wikitext" "$RESULTS_DIR/Qwen3.5-122B-A10B-AWQ/wikitext" 2 2
 create_sbatch_multi_gpu "Qwen3.5-122B-A10B-AWQ" "QuantTrio/Qwen3.5-122B-A10B-AWQ" "arc_easy" "02:00:00" "q35-122b_arc_easy" "$RESULTS_DIR/Qwen3.5-122B-A10B-AWQ/arc_easy" 2 2
 create_sbatch_multi_gpu "Qwen3.5-122B-A10B-AWQ" "QuantTrio/Qwen3.5-122B-A10B-AWQ" "boolq" "01:00:00" "q35-122b_boolq" "$RESULTS_DIR/Qwen3.5-122B-A10B-AWQ/boolq" 2 2
 create_sbatch_multi_gpu "Qwen3.5-122B-A10B-AWQ" "QuantTrio/Qwen3.5-122B-A10B-AWQ" "piqa" "01:00:00" "q35-122b_piqa" "$RESULTS_DIR/Qwen3.5-122B-A10B-AWQ/piqa" 2 2
@@ -279,7 +276,6 @@ create_sbatch_multi_gpu "Qwen3.5-397B-A17B-AWQ" "QuantTrio/Qwen3.5-397B-A17B-AWQ
 create_sbatch_multi_gpu "Qwen3.5-397B-A17B-AWQ" "QuantTrio/Qwen3.5-397B-A17B-AWQ" "aime25" "10:30:00" "q35-397b_aime25" "$RESULTS_DIR/Qwen3.5-397B-A17B-AWQ/aime25" 4 4
 create_sbatch_multi_gpu "Qwen3.5-397B-A17B-AWQ" "QuantTrio/Qwen3.5-397B-A17B-AWQ" "gpqa_main_n_shot" "03:30:00" "q35-397b_gpqa" "$RESULTS_DIR/Qwen3.5-397B-A17B-AWQ/gpqa_main_n_shot" 4 4
 create_sbatch_multi_gpu "Qwen3.5-397B-A17B-AWQ" "QuantTrio/Qwen3.5-397B-A17B-AWQ" "lambada_standard" "02:30:00" "q35-397b_lambada" "$RESULTS_DIR/Qwen3.5-397B-A17B-AWQ/lambada_standard" 4 4
-create_sbatch_multi_gpu "Qwen3.5-397B-A17B-AWQ" "QuantTrio/Qwen3.5-397B-A17B-AWQ" "wikitext" "05:30:00" "q35-397b_wikitext" "$RESULTS_DIR/Qwen3.5-397B-A17B-AWQ/wikitext" 4 4
 create_sbatch_multi_gpu "Qwen3.5-397B-A17B-AWQ" "QuantTrio/Qwen3.5-397B-A17B-AWQ" "arc_easy" "02:30:00" "q35-397b_arc_easy" "$RESULTS_DIR/Qwen3.5-397B-A17B-AWQ/arc_easy" 4 4
 create_sbatch_multi_gpu "Qwen3.5-397B-A17B-AWQ" "QuantTrio/Qwen3.5-397B-A17B-AWQ" "boolq" "02:30:00" "q35-397b_boolq" "$RESULTS_DIR/Qwen3.5-397B-A17B-AWQ/boolq" 4 4
 create_sbatch_multi_gpu "Qwen3.5-397B-A17B-AWQ" "QuantTrio/Qwen3.5-397B-A17B-AWQ" "piqa" "02:30:00" "q35-397b_piqa" "$RESULTS_DIR/Qwen3.5-397B-A17B-AWQ/piqa" 4 4
@@ -298,7 +294,6 @@ create_sbatch "Llama-3.2-1B-Instruct" "meta-llama/Llama-3.2-1B-Instruct" "gsm8k"
 create_sbatch "Llama-3.2-1B-Instruct" "meta-llama/Llama-3.2-1B-Instruct" "aime25" "08:30:00" "llama32-1b_aime25" "$RESULTS_DIR/Llama-3.2-1B-Instruct/aime25"
 create_sbatch "Llama-3.2-1B-Instruct" "meta-llama/Llama-3.2-1B-Instruct" "gpqa_main_n_shot" "01:30:00" "llama32-1b_gpqa" "$RESULTS_DIR/Llama-3.2-1B-Instruct/gpqa_main_n_shot"
 create_sbatch "Llama-3.2-1B-Instruct" "meta-llama/Llama-3.2-1B-Instruct" "lambada_standard" "01:30:00" "llama32-1b_lambada" "$RESULTS_DIR/Llama-3.2-1B-Instruct/lambada_standard"
-create_sbatch "Llama-3.2-1B-Instruct" "meta-llama/Llama-3.2-1B-Instruct" "wikitext" "04:00:00" "llama32-1b_wikitext" "$RESULTS_DIR/Llama-3.2-1B-Instruct/wikitext"
 create_sbatch "Llama-3.2-1B-Instruct" "meta-llama/Llama-3.2-1B-Instruct" "arc_easy" "01:30:00" "llama32-1b_arc_easy" "$RESULTS_DIR/Llama-3.2-1B-Instruct/arc_easy"
 create_sbatch "Llama-3.2-1B-Instruct" "meta-llama/Llama-3.2-1B-Instruct" "boolq" "01:30:00" "llama32-1b_boolq" "$RESULTS_DIR/Llama-3.2-1B-Instruct/boolq"
 create_sbatch "Llama-3.2-1B-Instruct" "meta-llama/Llama-3.2-1B-Instruct" "piqa" "01:30:00" "llama32-1b_piqa" "$RESULTS_DIR/Llama-3.2-1B-Instruct/piqa"
@@ -317,7 +312,6 @@ create_sbatch "Llama-3-8B-Instruct-AWQ" "casperhansen/llama-3-8b-instruct-awq" "
 create_sbatch "Llama-3-8B-Instruct-AWQ" "casperhansen/llama-3-8b-instruct-awq" "aime25" "09:30:00" "llama3-8b_aime25" "$RESULTS_DIR/Llama-3-8B-Instruct-AWQ/aime25"
 create_sbatch "Llama-3-8B-Instruct-AWQ" "casperhansen/llama-3-8b-instruct-awq" "gpqa_main_n_shot" "01:30:00" "llama3-8b_gpqa" "$RESULTS_DIR/Llama-3-8B-Instruct-AWQ/gpqa_main_n_shot"
 create_sbatch "Llama-3-8B-Instruct-AWQ" "casperhansen/llama-3-8b-instruct-awq" "lambada_standard" "01:30:00" "llama3-8b_lambada" "$RESULTS_DIR/Llama-3-8B-Instruct-AWQ/lambada_standard"
-create_sbatch "Llama-3-8B-Instruct-AWQ" "casperhansen/llama-3-8b-instruct-awq" "wikitext" "04:00:00" "llama3-8b_wikitext" "$RESULTS_DIR/Llama-3-8B-Instruct-AWQ/wikitext"
 create_sbatch "Llama-3-8B-Instruct-AWQ" "casperhansen/llama-3-8b-instruct-awq" "arc_easy" "01:30:00" "llama3-8b_arc_easy" "$RESULTS_DIR/Llama-3-8B-Instruct-AWQ/arc_easy"
 create_sbatch "Llama-3-8B-Instruct-AWQ" "casperhansen/llama-3-8b-instruct-awq" "boolq" "01:30:00" "llama3-8b_boolq" "$RESULTS_DIR/Llama-3-8B-Instruct-AWQ/boolq"
 create_sbatch "Llama-3-8B-Instruct-AWQ" "casperhansen/llama-3-8b-instruct-awq" "piqa" "01:30:00" "llama3-8b_piqa" "$RESULTS_DIR/Llama-3-8B-Instruct-AWQ/piqa"
@@ -336,7 +330,6 @@ create_sbatch "Llama-3.3-70B-Instruct-AWQ" "casperhansen/llama-3.3-70b-instruct-
 create_sbatch "Llama-3.3-70B-Instruct-AWQ" "casperhansen/llama-3.3-70b-instruct-awq" "aime25" "09:30:00" "llama33-70b_aime25" "$RESULTS_DIR/Llama-3.3-70B-Instruct-AWQ/aime25"
 create_sbatch "Llama-3.3-70B-Instruct-AWQ" "casperhansen/llama-3.3-70b-instruct-awq" "gpqa_main_n_shot" "01:30:00" "llama33-70b_gpqa" "$RESULTS_DIR/Llama-3.3-70B-Instruct-AWQ/gpqa_main_n_shot"
 create_sbatch "Llama-3.3-70B-Instruct-AWQ" "casperhansen/llama-3.3-70b-instruct-awq" "lambada_standard" "01:30:00" "llama33-70b_lambada" "$RESULTS_DIR/Llama-3.3-70B-Instruct-AWQ/lambada_standard"
-create_sbatch "Llama-3.3-70B-Instruct-AWQ" "casperhansen/llama-3.3-70b-instruct-awq" "wikitext" "04:30:00" "llama33-70b_wikitext" "$RESULTS_DIR/Llama-3.3-70B-Instruct-AWQ/wikitext"
 create_sbatch "Llama-3.3-70B-Instruct-AWQ" "casperhansen/llama-3.3-70b-instruct-awq" "arc_easy" "01:30:00" "llama33-70b_arc_easy" "$RESULTS_DIR/Llama-3.3-70B-Instruct-AWQ/arc_easy"
 create_sbatch "Llama-3.3-70B-Instruct-AWQ" "casperhansen/llama-3.3-70b-instruct-awq" "boolq" "01:30:00" "llama33-70b_boolq" "$RESULTS_DIR/Llama-3.3-70B-Instruct-AWQ/boolq"
 create_sbatch "Llama-3.3-70B-Instruct-AWQ" "casperhansen/llama-3.3-70b-instruct-awq" "piqa" "01:30:00" "llama33-70b_piqa" "$RESULTS_DIR/Llama-3.3-70B-Instruct-AWQ/piqa"
@@ -363,7 +356,7 @@ echo ""
 echo "NEW BENCHMARKS (11):"
 echo "  hellaswag, winogrande, arc_challenge, mmlu"
 echo "  gsm8k, aime25, gpqa_main_n_shot"
-echo "  lambada_standard, wikitext, acp_bench (11 benchmarks)"
+echo "  lambada_standard, acp_bench (11 benchmarks)"
 echo ""
 echo "EXISTING BENCHMARKS (7):"
 echo "  arc_easy, boolq, piqa, sciq, social_iqa"

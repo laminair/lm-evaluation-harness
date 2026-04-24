@@ -62,6 +62,7 @@ create_sbatch_multi_gpu() {
 #SBATCH --time=${time}
 #SBATCH --job-name=${job_name}
 #SBATCH --output=%x_%j.out
+#SBATCH --exclude=lrz-hgx-h100-020
 
 # Environment
 export HF_HOME=/dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2/.cache/hf
@@ -142,6 +143,7 @@ create_sbatch() {
 #SBATCH --time=${time}
 #SBATCH --job-name=${job_name}
 #SBATCH --output=%x_%j.out
+#SBATCH --exclude=lrz-hgx-h100-020
 
 # Environment
 export HF_HOME=/dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2/.cache/hf

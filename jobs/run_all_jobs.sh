@@ -2,7 +2,7 @@
 
 JOBS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SUMMARY_FILE="${JOBS_DIR}/job_summary_$(date +%Y%m%d_%H%M%S).txt"
-MAX_CONCURRENT=12
+MAX_CONCURRENT=4
 POLL_INTERVAL=90
 
 V36_TASKS="social_iqa"
@@ -100,7 +100,7 @@ collect_pending_jobs() {
     PENDING_JOBS=()
     local skipped_count=0
     
-    for model_dir in "Qwen3.5-2B" "Qwen3.5-9B-AWQ" "Qwen3.5-27B-AWQ" "Qwen3.5-35B-A3B-AWQ" "Llama-3.2-1B-Instruct" "Llama-3-8B-Instruct-AWQ" "Llama-3.3-70B-Instruct-AWQ" "Qwen3.5-122B-A10B-AWQ" "Qwen3.5-397B-A17B-AWQ"; do
+    for model_dir in "Qwen3.5-2B" "Qwen3.5-9B-AWQ" "Qwen3.5-27B-AWQ" "Qwen3.5-35B-A3B-AWQ" "Llama-3.2-1B-Instruct" "Llama-3-8B-Instruct-AWQ" "Llama-3.3-70B-Instruct-AWQ" "Qwen3.5-122B-A10B-AWQ"; do
         model_path="$JOBS_DIR/$model_dir"
         
         if [ -d "$model_path" ]; then
@@ -288,7 +288,6 @@ echo "========================================"
     echo "  Qwen3.5-27B-AWQ:                $JOBS_DIR/../results/Qwen3.5-27B-AWQ/"
     echo "  Qwen3.5-35B-A3B-AWQ:            $JOBS_DIR/../results/Qwen3.5-35B-A3B-AWQ/"
     echo "  Qwen3.5-122B-A10B-AWQ:          $JOBS_DIR/../results/Qwen3.5-122B-A10B-AWQ/"
-    echo "  Qwen3.5-397B-A17B-AWQ:         $JOBS_DIR/../results/Qwen3.5-397B-A17B-AWQ/"
     echo "  Llama-3.2-1B-Instruct:          $JOBS_DIR/../results/Llama-3.2-1B-Instruct/"
     echo "  Llama-3-8B-Instruct-AWQ:        $JOBS_DIR/../results/Llama-3-8B-Instruct-AWQ/"
     echo "  Llama-3.3-70B-Instruct-AWQ:     $JOBS_DIR/../results/Llama-3.3-70B-Instruct-AWQ/"

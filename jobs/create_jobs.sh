@@ -29,22 +29,24 @@ create_sbatch_multi_gpu() {
     local output_dir="$6"
     local gpu_count="$7"
     local tp_size="$8"
-    
+    local gpu_util="${9:-0.9}"
+    local extra_model_args="${10:-}"
+
     local dir="$JOBS_DIR/$model_name"
     mkdir -p "$dir"
-    
+
     local sbatch_file="$dir/${job_name}.sbatch"
-    
+
     local datasets_flag=""
     if needs_v36 "$task"; then
         datasets_flag="--with 'datasets==3.6.0'"
     fi
-    
+
     local code_eval_flag=""
     if needs_code_eval "$task"; then
         code_eval_flag="-e HF_ALLOW_CODE_EVAL=1"
     fi
-    
+
     cat > "$sbatch_file" <<EOF
 #!/bin/bash
 #SBATCH --partition=lrz-hgx-h100-94x4
@@ -73,24 +75,24 @@ IMAGE=/dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2/lm-evaluation-ha
 enroot create --name lm_eval_container_v3 "\$IMAGE" || true
 
 # Run evaluation in enroot container with mounts
-enroot start \\
-    -e HF_HOME=/dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2/.cache/hf \\
-    -m /dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2:/dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2 \\
-    -m /dss/dsshome1/09/\$USER:/root \\
-    ${code_eval_flag} \\
+enroot start \
+    -e HF_HOME=/dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2/.cache/hf \
+    -m /dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2:/dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2 \
+    -m /dss/dsshome1/09/\$USER:/root \
+    ${code_eval_flag} \
     --root lm_eval_container_v3 bash -c "
-    cd \$WORK_DIR && \\
-    uv run --extra vllm --extra energy ${datasets_flag:+$datasets_flag }lm_eval run \\
-        --model vllm \\
-        --model_args pretrained=${model_path},enforce_eager=True,gdn_prefill_backend=triton,tensor_parallel_size=${tp_size},gpu_memory_utilization=0.9,trust_remote_code=True \\
-        --tasks ${task} \\
-        --batch_size 1 \\
-        --output_path ${output_dir} \\
-        --log_samples \\
+    cd \$WORK_DIR && \
+    uv run --extra vllm --extra energy ${datasets_flag:+$datasets_flag }lm_eval run \
+        --model vllm \
+        --model_args pretrained=${model_path},enforce_eager=True,gdn_prefill_backend=triton,tensor_parallel_size=${tp_size},gpu_memory_utilization=${gpu_util}${extra_model_args:+,${extra_model_args}},trust_remote_code=True \
+        --tasks ${task} \
+        --batch_size 1 \
+        --output_path ${output_dir} \
+        --log_samples \
         --track_energy
 "
 EOF
-    
+
     echo "Created: $sbatch_file"
 }
 
@@ -103,22 +105,24 @@ create_sbatch() {
     local time="$4"
     local job_name="$5"
     local output_dir="$6"
-    
+    local gpu_util="${7:-0.9}"
+    local extra_model_args="${8:-}"
+
     local dir="$JOBS_DIR/$model_name"
     mkdir -p "$dir"
-    
+
     local sbatch_file="$dir/${job_name}.sbatch"
-    
+
     local datasets_flag=""
     if needs_v36 "$task"; then
         datasets_flag="--with 'datasets==3.6.0'"
     fi
-    
+
     local code_eval_flag=""
     if needs_code_eval "$task"; then
         code_eval_flag="-e HF_ALLOW_CODE_EVAL=1"
     fi
-    
+
     cat > "$sbatch_file" <<EOF
 #!/bin/bash
 #SBATCH --partition=lrz-hgx-h100-94x4
@@ -147,24 +151,24 @@ IMAGE=/dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2/lm-evaluation-ha
 enroot create --name lm_eval_container_v3 "\$IMAGE" || true
 
 # Run evaluation in enroot container with mounts
-enroot start \\
-    -e HF_HOME=/dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2/.cache/hf \\
-    -m /dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2:/dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2 \\
-    -m /dss/dsshome1/09/\$USER:/root \\
-    ${code_eval_flag} \\
+enroot start \
+    -e HF_HOME=/dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2/.cache/hf \
+    -m /dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2:/dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2 \
+    -m /dss/dsshome1/09/\$USER:/root \
+    ${code_eval_flag} \
     --root lm_eval_container_v3 bash -c "
-    cd \$WORK_DIR && \\
-    uv run --extra vllm --extra energy ${datasets_flag:+$datasets_flag }lm_eval run \\
-        --model vllm \\
-        --model_args pretrained=${model_path},enforce_eager=True,gdn_prefill_backend=triton,track_energy=true,approx_instant_energy=true,dtype=float16,gpu_memory_utilization=0.9,trust_remote_code=True \\
-        --tasks ${task} \\
-        --batch_size 1 \\
-        --output_path ${output_dir} \\
-        --log_samples \\
+    cd \$WORK_DIR && \
+    uv run --extra vllm --extra energy ${datasets_flag:+$datasets_flag }lm_eval run \
+        --model vllm \
+        --model_args pretrained=${model_path},enforce_eager=True,gdn_prefill_backend=triton,track_energy=true,approx_instant_energy=true,dtype=float16,gpu_memory_utilization=${gpu_util}${extra_model_args:+,${extra_model_args}},trust_remote_code=True \
+        --tasks ${task} \
+        --batch_size 1 \
+        --output_path ${output_dir} \
+        --log_samples \
         --track_energy
 "
 EOF
-    
+
     echo "Created: $sbatch_file"
 }
 
@@ -184,7 +188,7 @@ create_sbatch "Qwen3.5-2B" "Qwen/Qwen3.5-2B" "gsm8k" "08:30:00" "q35-2b_gsm8k" "
 
 create_sbatch "Qwen3.5-2B" "Qwen/Qwen3.5-2B" "aime25" "09:30:00" "q35-2b_aime25" "$RESULTS_DIR/Qwen3.5-2B/aime25"
 create_sbatch "Qwen3.5-2B" "Qwen/Qwen3.5-2B" "gpqa_main_n_shot" "01:30:00" "q35-2b_gpqa" "$RESULTS_DIR/Qwen3.5-2B/gpqa_main_n_shot"
-create_sbatch "Qwen3.5-2B" "Qwen/Qwen3.5-2B" "lambada_standard" "01:30:00" "q35-2b_lambada" "$RESULTS_DIR/Qwen3.5-2B/lambada_standard"
+create_sbatch "Qwen3.5-2B" "Qwen/Qwen3.5-2B" "lambada_standard" "01:30:00" "q35-2b_lambada" "$RESULTS_DIR/Qwen3.5-2B/lambada_standard" "0.7" "max_model_len=32768"
 # Existing benchmarks
 create_sbatch "Qwen3.5-2B" "Qwen/Qwen3.5-2B" "arc_easy" "01:30:00" "q35-2b_arc_easy" "$RESULTS_DIR/Qwen3.5-2B/arc_easy"
 create_sbatch "Qwen3.5-2B" "Qwen/Qwen3.5-2B" "boolq" "01:30:00" "q35-2b_boolq" "$RESULTS_DIR/Qwen3.5-2B/boolq"
@@ -203,7 +207,7 @@ create_sbatch "Qwen3.5-9B-AWQ" "QuantTrio/Qwen3.5-9B-AWQ" "gsm8k" "08:00:00" "q3
 
 create_sbatch "Qwen3.5-9B-AWQ" "QuantTrio/Qwen3.5-9B-AWQ" "aime25" "09:30:00" "q35-9b_aime25" "$RESULTS_DIR/Qwen3.5-9B-AWQ/aime25"
 create_sbatch "Qwen3.5-9B-AWQ" "QuantTrio/Qwen3.5-9B-AWQ" "gpqa_main_n_shot" "01:30:00" "q35-9b_gpqa" "$RESULTS_DIR/Qwen3.5-9B-AWQ/gpqa_main_n_shot"
-create_sbatch "Qwen3.5-9B-AWQ" "QuantTrio/Qwen3.5-9B-AWQ" "lambada_standard" "01:30:00" "q35-9b_lambada" "$RESULTS_DIR/Qwen3.5-9B-AWQ/lambada_standard"
+create_sbatch "Qwen3.5-9B-AWQ" "QuantTrio/Qwen3.5-9B-AWQ" "lambada_standard" "01:30:00" "q35-9b_lambada" "$RESULTS_DIR/Qwen3.5-9B-AWQ/lambada_standard" "0.7" "max_model_len=32768"
 create_sbatch "Qwen3.5-9B-AWQ" "QuantTrio/Qwen3.5-9B-AWQ" "arc_easy" "01:30:00" "q35-9b_arc_easy" "$RESULTS_DIR/Qwen3.5-9B-AWQ/arc_easy"
 create_sbatch "Qwen3.5-9B-AWQ" "QuantTrio/Qwen3.5-9B-AWQ" "boolq" "01:30:00" "q35-9b_boolq" "$RESULTS_DIR/Qwen3.5-9B-AWQ/boolq"
 create_sbatch "Qwen3.5-9B-AWQ" "QuantTrio/Qwen3.5-9B-AWQ" "piqa" "01:30:00" "q35-9b_piqa" "$RESULTS_DIR/Qwen3.5-9B-AWQ/piqa"
@@ -221,7 +225,7 @@ create_sbatch "Qwen3.5-27B-AWQ" "QuantTrio/Qwen3.5-27B-AWQ" "gsm8k" "08:00:00" "
 
 create_sbatch "Qwen3.5-27B-AWQ" "QuantTrio/Qwen3.5-27B-AWQ" "aime25" "09:30:00" "q35-27b_aime25" "$RESULTS_DIR/Qwen3.5-27B-AWQ/aime25"
 create_sbatch "Qwen3.5-27B-AWQ" "QuantTrio/Qwen3.5-27B-AWQ" "gpqa_main_n_shot" "01:30:00" "q35-27b_gpqa" "$RESULTS_DIR/Qwen3.5-27B-AWQ/gpqa_main_n_shot"
-create_sbatch "Qwen3.5-27B-AWQ" "QuantTrio/Qwen3.5-27B-AWQ" "lambada_standard" "02:00:00" "q35-27b_lambada" "$RESULTS_DIR/Qwen3.5-27B-AWQ/lambada_standard"
+create_sbatch "Qwen3.5-27B-AWQ" "QuantTrio/Qwen3.5-27B-AWQ" "lambada_standard" "02:00:00" "q35-27b_lambada" "$RESULTS_DIR/Qwen3.5-27B-AWQ/lambada_standard" "0.7" "max_model_len=32768"
 create_sbatch "Qwen3.5-27B-AWQ" "QuantTrio/Qwen3.5-27B-AWQ" "arc_easy" "02:00:00" "q35-27b_arc_easy" "$RESULTS_DIR/Qwen3.5-27B-AWQ/arc_easy"
 create_sbatch "Qwen3.5-27B-AWQ" "QuantTrio/Qwen3.5-27B-AWQ" "boolq" "01:00:00" "q35-27b_boolq" "$RESULTS_DIR/Qwen3.5-27B-AWQ/boolq"
 create_sbatch "Qwen3.5-27B-AWQ" "QuantTrio/Qwen3.5-27B-AWQ" "piqa" "01:00:00" "q35-27b_piqa" "$RESULTS_DIR/Qwen3.5-27B-AWQ/piqa"
@@ -239,7 +243,7 @@ create_sbatch "Qwen3.5-35B-A3B-AWQ" "QuantTrio/Qwen3.5-35B-A3B-AWQ" "gsm8k" "08:
 
 create_sbatch "Qwen3.5-35B-A3B-AWQ" "QuantTrio/Qwen3.5-35B-A3B-AWQ" "aime25" "12:30:00" "q35-35b_aime25" "$RESULTS_DIR/Qwen3.5-35B-A3B-AWQ/aime25"
 create_sbatch "Qwen3.5-35B-A3B-AWQ" "QuantTrio/Qwen3.5-35B-A3B-AWQ" "gpqa_main_n_shot" "01:30:00" "q35-35b_gpqa" "$RESULTS_DIR/Qwen3.5-35B-A3B-AWQ/gpqa_main_n_shot"
-create_sbatch "Qwen3.5-35B-A3B-AWQ" "QuantTrio/Qwen3.5-35B-A3B-AWQ" "lambada_standard" "02:00:00" "q35-35b_lambada" "$RESULTS_DIR/Qwen3.5-35B-A3B-AWQ/lambada_standard"
+create_sbatch "Qwen3.5-35B-A3B-AWQ" "QuantTrio/Qwen3.5-35B-A3B-AWQ" "lambada_standard" "02:00:00" "q35-35b_lambada" "$RESULTS_DIR/Qwen3.5-35B-A3B-AWQ/lambada_standard" "0.7" "max_model_len=32768"
 create_sbatch "Qwen3.5-35B-A3B-AWQ" "QuantTrio/Qwen3.5-35B-A3B-AWQ" "arc_easy" "02:00:00" "q35-35b_arc_easy" "$RESULTS_DIR/Qwen3.5-35B-A3B-AWQ/arc_easy"
 create_sbatch "Qwen3.5-35B-A3B-AWQ" "QuantTrio/Qwen3.5-35B-A3B-AWQ" "boolq" "01:00:00" "q35-35b_boolq" "$RESULTS_DIR/Qwen3.5-35B-A3B-AWQ/boolq"
 create_sbatch "Qwen3.5-35B-A3B-AWQ" "QuantTrio/Qwen3.5-35B-A3B-AWQ" "piqa" "01:00:00" "q35-35b_piqa" "$RESULTS_DIR/Qwen3.5-35B-A3B-AWQ/piqa"
@@ -257,7 +261,7 @@ create_sbatch_multi_gpu "Qwen3.5-122B-A10B-AWQ" "QuantTrio/Qwen3.5-122B-A10B-AWQ
 
 create_sbatch_multi_gpu "Qwen3.5-122B-A10B-AWQ" "QuantTrio/Qwen3.5-122B-A10B-AWQ" "aime25" "17:30:00" "q35-122b_aime25" "$RESULTS_DIR/Qwen3.5-122B-A10B-AWQ/aime25" 2 2
 create_sbatch_multi_gpu "Qwen3.5-122B-A10B-AWQ" "QuantTrio/Qwen3.5-122B-A10B-AWQ" "gpqa_main_n_shot" "01:30:00" "q35-122b_gpqa" "$RESULTS_DIR/Qwen3.5-122B-A10B-AWQ/gpqa_main_n_shot" 2 2
-create_sbatch_multi_gpu "Qwen3.5-122B-A10B-AWQ" "QuantTrio/Qwen3.5-122B-A10B-AWQ" "lambada_standard" "02:00:00" "q35-122b_lambada" "$RESULTS_DIR/Qwen3.5-122B-A10B-AWQ/lambada_standard" 2 2
+create_sbatch_multi_gpu "Qwen3.5-122B-A10B-AWQ" "QuantTrio/Qwen3.5-122B-A10B-AWQ" "lambada_standard" "02:00:00" "q35-122b_lambada" "$RESULTS_DIR/Qwen3.5-122B-A10B-AWQ/lambada_standard" 2 2 "0.7" "max_model_len=32768"
 create_sbatch_multi_gpu "Qwen3.5-122B-A10B-AWQ" "QuantTrio/Qwen3.5-122B-A10B-AWQ" "arc_easy" "02:00:00" "q35-122b_arc_easy" "$RESULTS_DIR/Qwen3.5-122B-A10B-AWQ/arc_easy" 2 2
 create_sbatch_multi_gpu "Qwen3.5-122B-A10B-AWQ" "QuantTrio/Qwen3.5-122B-A10B-AWQ" "boolq" "01:00:00" "q35-122b_boolq" "$RESULTS_DIR/Qwen3.5-122B-A10B-AWQ/boolq" 2 2
 create_sbatch_multi_gpu "Qwen3.5-122B-A10B-AWQ" "QuantTrio/Qwen3.5-122B-A10B-AWQ" "piqa" "01:00:00" "q35-122b_piqa" "$RESULTS_DIR/Qwen3.5-122B-A10B-AWQ/piqa" 2 2
@@ -275,7 +279,7 @@ create_sbatch_multi_gpu "Qwen3.5-397B-A17B-AWQ" "QuantTrio/Qwen3.5-397B-A17B-AWQ
 
 create_sbatch_multi_gpu "Qwen3.5-397B-A17B-AWQ" "QuantTrio/Qwen3.5-397B-A17B-AWQ" "aime25" "10:30:00" "q35-397b_aime25" "$RESULTS_DIR/Qwen3.5-397B-A17B-AWQ/aime25" 4 4
 create_sbatch_multi_gpu "Qwen3.5-397B-A17B-AWQ" "QuantTrio/Qwen3.5-397B-A17B-AWQ" "gpqa_main_n_shot" "03:30:00" "q35-397b_gpqa" "$RESULTS_DIR/Qwen3.5-397B-A17B-AWQ/gpqa_main_n_shot" 4 4
-create_sbatch_multi_gpu "Qwen3.5-397B-A17B-AWQ" "QuantTrio/Qwen3.5-397B-A17B-AWQ" "lambada_standard" "02:30:00" "q35-397b_lambada" "$RESULTS_DIR/Qwen3.5-397B-A17B-AWQ/lambada_standard" 4 4
+create_sbatch_multi_gpu "Qwen3.5-397B-A17B-AWQ" "QuantTrio/Qwen3.5-397B-A17B-AWQ" "lambada_standard" "02:30:00" "q35-397b_lambada" "$RESULTS_DIR/Qwen3.5-397B-A17B-AWQ/lambada_standard" 4 4 "0.7" "max_model_len=32768"
 create_sbatch_multi_gpu "Qwen3.5-397B-A17B-AWQ" "QuantTrio/Qwen3.5-397B-A17B-AWQ" "arc_easy" "02:30:00" "q35-397b_arc_easy" "$RESULTS_DIR/Qwen3.5-397B-A17B-AWQ/arc_easy" 4 4
 create_sbatch_multi_gpu "Qwen3.5-397B-A17B-AWQ" "QuantTrio/Qwen3.5-397B-A17B-AWQ" "boolq" "02:30:00" "q35-397b_boolq" "$RESULTS_DIR/Qwen3.5-397B-A17B-AWQ/boolq" 4 4
 create_sbatch_multi_gpu "Qwen3.5-397B-A17B-AWQ" "QuantTrio/Qwen3.5-397B-A17B-AWQ" "piqa" "02:30:00" "q35-397b_piqa" "$RESULTS_DIR/Qwen3.5-397B-A17B-AWQ/piqa" 4 4
@@ -293,7 +297,7 @@ create_sbatch "Llama-3.2-1B-Instruct" "meta-llama/Llama-3.2-1B-Instruct" "gsm8k"
 
 create_sbatch "Llama-3.2-1B-Instruct" "meta-llama/Llama-3.2-1B-Instruct" "aime25" "08:30:00" "llama32-1b_aime25" "$RESULTS_DIR/Llama-3.2-1B-Instruct/aime25"
 create_sbatch "Llama-3.2-1B-Instruct" "meta-llama/Llama-3.2-1B-Instruct" "gpqa_main_n_shot" "01:30:00" "llama32-1b_gpqa" "$RESULTS_DIR/Llama-3.2-1B-Instruct/gpqa_main_n_shot"
-create_sbatch "Llama-3.2-1B-Instruct" "meta-llama/Llama-3.2-1B-Instruct" "lambada_standard" "01:30:00" "llama32-1b_lambada" "$RESULTS_DIR/Llama-3.2-1B-Instruct/lambada_standard"
+create_sbatch "Llama-3.2-1B-Instruct" "meta-llama/Llama-3.2-1B-Instruct" "lambada_standard" "01:30:00" "llama32-1b_lambada" "$RESULTS_DIR/Llama-3.2-1B-Instruct/lambada_standard" "0.7" "max_model_len=32768"
 create_sbatch "Llama-3.2-1B-Instruct" "meta-llama/Llama-3.2-1B-Instruct" "arc_easy" "01:30:00" "llama32-1b_arc_easy" "$RESULTS_DIR/Llama-3.2-1B-Instruct/arc_easy"
 create_sbatch "Llama-3.2-1B-Instruct" "meta-llama/Llama-3.2-1B-Instruct" "boolq" "01:30:00" "llama32-1b_boolq" "$RESULTS_DIR/Llama-3.2-1B-Instruct/boolq"
 create_sbatch "Llama-3.2-1B-Instruct" "meta-llama/Llama-3.2-1B-Instruct" "piqa" "01:30:00" "llama32-1b_piqa" "$RESULTS_DIR/Llama-3.2-1B-Instruct/piqa"
@@ -311,7 +315,7 @@ create_sbatch "Llama-3-8B-Instruct-AWQ" "casperhansen/llama-3-8b-instruct-awq" "
 
 create_sbatch "Llama-3-8B-Instruct-AWQ" "casperhansen/llama-3-8b-instruct-awq" "aime25" "10:30:00" "llama3-8b_aime25" "$RESULTS_DIR/Llama-3-8B-Instruct-AWQ/aime25"
 create_sbatch "Llama-3-8B-Instruct-AWQ" "casperhansen/llama-3-8b-instruct-awq" "gpqa_main_n_shot" "01:30:00" "llama3-8b_gpqa" "$RESULTS_DIR/Llama-3-8B-Instruct-AWQ/gpqa_main_n_shot"
-create_sbatch "Llama-3-8B-Instruct-AWQ" "casperhansen/llama-3-8b-instruct-awq" "lambada_standard" "01:30:00" "llama3-8b_lambada" "$RESULTS_DIR/Llama-3-8B-Instruct-AWQ/lambada_standard"
+create_sbatch "Llama-3-8B-Instruct-AWQ" "casperhansen/llama-3-8b-instruct-awq" "lambada_standard" "01:30:00" "llama3-8b_lambada" "$RESULTS_DIR/Llama-3-8B-Instruct-AWQ/lambada_standard" "0.7" "max_model_len=32768"
 create_sbatch "Llama-3-8B-Instruct-AWQ" "casperhansen/llama-3-8b-instruct-awq" "arc_easy" "01:30:00" "llama3-8b_arc_easy" "$RESULTS_DIR/Llama-3-8B-Instruct-AWQ/arc_easy"
 create_sbatch "Llama-3-8B-Instruct-AWQ" "casperhansen/llama-3-8b-instruct-awq" "boolq" "01:30:00" "llama3-8b_boolq" "$RESULTS_DIR/Llama-3-8B-Instruct-AWQ/boolq"
 create_sbatch "Llama-3-8B-Instruct-AWQ" "casperhansen/llama-3-8b-instruct-awq" "piqa" "01:30:00" "llama3-8b_piqa" "$RESULTS_DIR/Llama-3-8B-Instruct-AWQ/piqa"
@@ -329,7 +333,7 @@ create_sbatch "Llama-3.3-70B-Instruct-AWQ" "casperhansen/llama-3.3-70b-instruct-
 
 create_sbatch "Llama-3.3-70B-Instruct-AWQ" "casperhansen/llama-3.3-70b-instruct-awq" "aime25" "09:30:00" "llama33-70b_aime25" "$RESULTS_DIR/Llama-3.3-70B-Instruct-AWQ/aime25"
 create_sbatch "Llama-3.3-70B-Instruct-AWQ" "casperhansen/llama-3.3-70b-instruct-awq" "gpqa_main_n_shot" "01:30:00" "llama33-70b_gpqa" "$RESULTS_DIR/Llama-3.3-70B-Instruct-AWQ/gpqa_main_n_shot"
-create_sbatch "Llama-3.3-70B-Instruct-AWQ" "casperhansen/llama-3.3-70b-instruct-awq" "lambada_standard" "01:30:00" "llama33-70b_lambada" "$RESULTS_DIR/Llama-3.3-70B-Instruct-AWQ/lambada_standard"
+create_sbatch "Llama-3.3-70B-Instruct-AWQ" "casperhansen/llama-3.3-70b-instruct-awq" "lambada_standard" "01:30:00" "llama33-70b_lambada" "$RESULTS_DIR/Llama-3.3-70B-Instruct-AWQ/lambada_standard" "0.7" "max_model_len=32768"
 create_sbatch "Llama-3.3-70B-Instruct-AWQ" "casperhansen/llama-3.3-70b-instruct-awq" "arc_easy" "01:30:00" "llama33-70b_arc_easy" "$RESULTS_DIR/Llama-3.3-70B-Instruct-AWQ/arc_easy"
 create_sbatch "Llama-3.3-70B-Instruct-AWQ" "casperhansen/llama-3.3-70b-instruct-awq" "boolq" "01:30:00" "llama33-70b_boolq" "$RESULTS_DIR/Llama-3.3-70B-Instruct-AWQ/boolq"
 create_sbatch "Llama-3.3-70B-Instruct-AWQ" "casperhansen/llama-3.3-70b-instruct-awq" "piqa" "01:30:00" "llama33-70b_piqa" "$RESULTS_DIR/Llama-3.3-70B-Instruct-AWQ/piqa"

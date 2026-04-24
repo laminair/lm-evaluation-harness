@@ -25,19 +25,6 @@ IMAGE=/dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2/lm-evaluation-ha
 enroot create --name lm_eval_container_v3 "$IMAGE" || true
 
 # Run evaluation in enroot container with mounts
-enroot start \
-    -e HF_HOME=/dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2/.cache/hf \
-    -m /dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2:/dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2 \
-    -m /dss/dsshome1/09/$USER:/root \
-     \
-    --root lm_eval_container_v3 bash -c "
-    cd $WORK_DIR && \
-    uv run --extra vllm --extra energy lm_eval run \
-        --model vllm \
-        --model_args pretrained=casperhansen/llama-3.3-70b-instruct-awq,enforce_eager=True,gdn_prefill_backend=triton,track_energy=true,approx_instant_energy=true,dtype=float16,gpu_memory_utilization=0.9,trust_remote_code=True \
-        --tasks arc_challenge \
-        --batch_size 1 \
-        --output_path /dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2/lm-evaluation-harness/results/Llama-3.3-70B-Instruct-AWQ/arc_challenge \
-        --log_samples \
-        --track_energy
+enroot start     -e HF_HOME=/dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2/.cache/hf     -m /dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2:/dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2     -m /dss/dsshome1/09/$USER:/root          --root lm_eval_container_v3 bash -c "
+    cd $WORK_DIR &&     uv run --extra vllm --extra energy lm_eval run         --model vllm         --model_args pretrained=casperhansen/llama-3.3-70b-instruct-awq,enforce_eager=True,gdn_prefill_backend=triton,track_energy=true,approx_instant_energy=true,dtype=float16,gpu_memory_utilization=0.9,trust_remote_code=True         --tasks arc_challenge         --batch_size 1         --output_path /dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2/lm-evaluation-harness/results/Llama-3.3-70B-Instruct-AWQ/arc_challenge         --log_samples         --track_energy
 "

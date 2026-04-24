@@ -223,7 +223,7 @@ create_sbatch "Qwen3.5-9B-AWQ" "QuantTrio/Qwen3.5-9B-AWQ" "gpqa_main_n_shot" "01
 
 echo ""
 echo "=== Qwen3.5-27B-AWQ (11 jobs) ==="
-create_sbatch "Qwen3.5-27B-AWQ" "QuantTrio/Qwen3.5-27B-AWQ" "hellaswag_train_limited" "01:30:00" "q35-27b_hellaswag_train_limited" "$RESULTS_DIR/Qwen3.5-27B-AWQ/hellaswag_train_limited" "10042"
+create_sbatch "Qwen3.5-27B-AWQ" "QuantTrio/Qwen3.5-27B-AWQ" "hellaswag_train_limited" "01:50:00" "q35-27b_hellaswag_train_limited" "$RESULTS_DIR/Qwen3.5-27B-AWQ/hellaswag_train_limited" "10042"
 create_sbatch "Qwen3.5-27B-AWQ" "QuantTrio/Qwen3.5-27B-AWQ" "winogrande_train_limited" "01:30:00" "q35-27b_winogrande_train_limited" "$RESULTS_DIR/Qwen3.5-27B-AWQ/winogrande_train_limited" "1267"
 create_sbatch "Qwen3.5-27B-AWQ" "QuantTrio/Qwen3.5-27B-AWQ" "arc_challenge_train_limited" "01:30:00" "q35-27b_arc_challenge_train_limited" "$RESULTS_DIR/Qwen3.5-27B-AWQ/arc_challenge_train_limited" "1172"
 create_sbatch "Qwen3.5-27B-AWQ" "QuantTrio/Qwen3.5-27B-AWQ" "arc_easy_train_limited" "02:00:00" "q35-27b_arc_easy_train_limited" "$RESULTS_DIR/Qwen3.5-27B-AWQ/arc_easy_train_limited" "2376"

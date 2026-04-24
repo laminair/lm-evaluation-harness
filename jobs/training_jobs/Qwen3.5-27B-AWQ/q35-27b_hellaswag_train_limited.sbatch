@@ -3,7 +3,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --gres=gpu:1
-#SBATCH --time=01:30:00
+#SBATCH --time=01:50:00
 #SBATCH --job-name=q35-27b_hellaswag_train_limited
 #SBATCH --output=%x_%j.out
 #SBATCH --exclude=lrz-hgx-h100-020

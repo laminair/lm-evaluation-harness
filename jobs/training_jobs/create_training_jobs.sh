@@ -64,7 +64,7 @@ create_sbatch_multi_gpu() {
 #SBATCH --time=${time}
 #SBATCH --job-name=${job_name}
 #SBATCH --output=%x_%j.out
-#SBATCH --exclude=lrz-hgx-h100-020
+#SBATCH --exclude=lrz-hgx-h100-020,lrz-hgx-h100-028
 
 # Environment
 export HF_HOME=/dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2/.cache/hf
@@ -147,7 +147,7 @@ create_sbatch() {
 #SBATCH --time=${time}
 #SBATCH --job-name=${job_name}
 #SBATCH --output=%x_%j.out
-#SBATCH --exclude=lrz-hgx-h100-020
+#SBATCH --exclude=lrz-hgx-h100-020,lrz-hgx-h100-028
 
 # Environment
 export HF_HOME=/dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2/.cache/hf
@@ -288,7 +288,7 @@ create_sbatch "Llama-3-8B-Instruct-AWQ" "casperhansen/llama-3-8b-instruct-awq" "
 create_sbatch "Llama-3-8B-Instruct-AWQ" "casperhansen/llama-3-8b-instruct-awq" "piqa_train_limited" "01:30:00" "llama3-8b_piqa_train_limited" "$RESULTS_DIR/Llama-3-8B-Instruct-AWQ/piqa_train_limited" "3084"
 create_sbatch "Llama-3-8B-Instruct-AWQ" "casperhansen/llama-3-8b-instruct-awq" "sciq_train_limited" "01:30:00" "llama3-8b_sciq_train_limited" "$RESULTS_DIR/Llama-3-8B-Instruct-AWQ/sciq_train_limited" "1000"
 create_sbatch "Llama-3-8B-Instruct-AWQ" "casperhansen/llama-3-8b-instruct-awq" "social_iqa_train_limited" "01:30:00" "llama3-8b_social_iqa_train_limited" "$RESULTS_DIR/Llama-3-8B-Instruct-AWQ/social_iqa_train_limited" "1954"
-create_sbatch "Llama-3-8B-Instruct-AWQ" "casperhansen/llama-3-8b-instruct-awq" "lambada_standard_train_limited" "01:30:00" "llama3-8b_lambada_train_limited" "$RESULTS_DIR/Llama-3-8B-Instruct-AWQ/lambada_standard_train_limited" "5153" "0.7" "max_model_len=32768"
+create_sbatch "Llama-3-8B-Instruct-AWQ" "casperhansen/llama-3-8b-instruct-awq" "lambada_standard_train_limited" "01:30:00" "llama3-8b_lambada_train_limited" "$RESULTS_DIR/Llama-3-8B-Instruct-AWQ/lambada_standard_train_limited" "5153" "0.7" "max_model_len=8192"
 create_sbatch "Llama-3-8B-Instruct-AWQ" "casperhansen/llama-3-8b-instruct-awq" "gpqa_main_n_shot" "01:30:00" "llama3-8b_gpqa" "$RESULTS_DIR/Llama-3-8B-Instruct-AWQ/gpqa_main_n_shot"
 
 echo ""

@@ -339,19 +339,21 @@ class OpenAIChatCompletion(LocalChatCompletion):
             "messages": messages,
             "model": self.model,
             "max_completion_tokens": max_tokens,
-            "temperature": temperature,
             "stop": stop[:4],
             "seed": seed,
             **gen_kwargs,
         }
+        if temperature is not None:
+            output["temperature"] = temperature
         if (
             "o1" in self.model
             or "5" in self.model
             or "o3" in self.model
             or "o4" in self.model
         ):
-            output.pop("stop")
-            output["temperature"] = 1
+            output.pop("stop", None)
+            if temperature is not None:
+                output["temperature"] = 1
         return output
 
 

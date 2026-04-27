@@ -6,7 +6,7 @@
 #SBATCH --time=02:00:00
 #SBATCH --job-name=q35-35b_hellaswag_train_limited
 #SBATCH --output=%x_%j.out
-#SBATCH --exclude=lrz-hgx-h100-020,lrz-hgx-h100-028
+#SBATCH --exclude=lrz-hgx-h100-020,lrz-hgx-h100-028,lrz-hgx-h100-022
 
 # Environment
 export HF_HOME=/dss/dssfs04/lwp-dss-0002/pn72yi/pn72yi-dss-0000/ge56heh2/.cache/hf

@@ -864,7 +864,11 @@ class TemplateAPI(TemplateLM):
                     )
 
                 for context in contexts:
-                    cache_key = (context, tuple(all_gen_kwargs[0].items()))
+                    gen_kwargs_tuple = tuple(
+                        (k, tuple(v) if isinstance(v, list) else v)
+                        for k, v in sorted(all_gen_kwargs[0].items())
+                    )
+                    cache_key = (context, gen_kwargs_tuple)
                     self._request_token_usage_map[cache_key] = token_per_request
                     self._request_latency_map[cache_key] = latency_per_request
 
@@ -936,7 +940,11 @@ class TemplateAPI(TemplateLM):
 
         # Attribute token usage, latency, and throughput to instances
         for req in original_requests:
-            cache_key = (req.args[0], tuple(req.args[1].items()))
+            gen_kwargs_tuple = tuple(
+                (k, tuple(v) if isinstance(v, list) else v)
+                for k, v in sorted(req.args[1].items())
+            )
+            cache_key = (req.args[0], gen_kwargs_tuple)
             if cache_key in self._request_token_usage_map:
                 req.token_usage = self._request_token_usage_map[cache_key]
             if cache_key in self._request_latency_map:

@@ -26,7 +26,7 @@ enroot start \
     --root lm_eval_container_v3 bash -c "
     cd $WORK_DIR && \
     echo '=== Downloading QuantTrio/Qwen3.5-122B-A10B-AWQ ===' && \
-    hf download QuantTrio/Qwen3.5-122B-A10B-AWQ
+    uv run --with "huggingface_hub[cli]" hf download QuantTrio/Qwen3.5-122B-A10B-AWQ
 "
 
 # echo '=== Downloading Qwen/Qwen3.5-2B ===' && \
